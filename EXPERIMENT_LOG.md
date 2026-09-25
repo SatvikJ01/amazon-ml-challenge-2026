@@ -26,6 +26,9 @@ Blocking experiments report pair recall on 5k India S1 queries against the full 
 | E021L | 09-25 22:03 | Can a light stage 3 (16 feats) run on saved test scores? | p2 + sibling + retrieval feats only | 0.96176 (+0.0003, noise) → not worth a submission | Rejected |
 | E022 | 09-25 22:06 | Do anchors retrieve what S1 text misses? | true retrieved siblings query the S2 pool (India), top-k | recovers 16.8 % (k1) / **29.3 % (k3)** / 34.0 % (k5) of residual misses → pair recall ≈ .958 → .970 (upper bound) | **Pursue** |
 | — | 09-25 21:40 | LB check of decision rule | day1_s2 (expF + exclusivity) | public **0.953** (s1: 0.952) | kept |
+| E020 | 09-26 ~00:30 | Reverse-union retrain | features with reverse channel | India built; **US feature build OOM (5.5 GB)** → chain aborted; not evaluated | pending fix |
+| E023A | 09-26 03:20 | Do anchor-retrieval features help on existing candidates? | predicted anchors (OOF p2 ≥ 0.9), anchor feats on E021p survivors | 0.9631 (E021p 0.9633) → no gain without new candidates | No |
+| E023B | 09-26 03:29 | Do **predicted**-anchor candidates help? | + anchor top-3 new pairs (+4.8/entity), full feats, same holdout | **0.9669** (+0.0036 vs E021p, +0.0055 vs E013); cand recall .945→.9605; oracle .9806→.9846; FP 527→571; FN 9045→7566; singletons .9661→.9727; US .9705 / India .9616 | **Champion (holdout)** |
 ## Details
 
 ### E001 (failed)
@@ -73,3 +76,11 @@ reranker, not more keys.
 - Stage 1 (cross-fitted, 5 entity folds): OOF keeps 25.2 % of pairs, 99.88 % of positives.
 - Stage 2 on survivors: **0.96142** vs 0.96139 (E011) on the same holdout -> no accuracy cost,
   4x fewer pairs to featurise, candidate_pairs.tsv 4x smaller (~26 M ids instead of ~104 M).
+
+### E023 — predicted-anchor retrieval
+- Anchors = cross-fitted stage-2 predictions (p2 ≥ 0.9); no ground truth used. Oracle (true-sibling)
+  pilot E022 kept separately as the upper bound: India S2 residual misses recovered 29 % at k=3
+  (pair recall ≈ .958 → .970 on that slice, measured after forward ∪ reverse).
+- The gain is entirely from the added candidates (E023A ≈ E021p).
+- France (no labels) — label-free: 94.2 % of entities have an anchor (train 92.9–93.4 %),
+  3.15 anchors/entity (train 3.05–3.13), 3.6 new candidates/entity (train 4.8): mechanism transfers.
