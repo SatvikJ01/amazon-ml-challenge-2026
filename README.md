@@ -4,7 +4,27 @@ For every Source-1 business record, find all Source-2 / Source-3 records that re
 real-world business. Scored by per-entity F0.5, macro-averaged (singletons count).
 Full spec: [reports/task_spec.md](reports/task_spec.md). Data facts: [reports/data_diagnostics.md](reports/data_diagnostics.md).
 
-## Pipeline
+## Pipeline (v3, current)
+
+```
+normalise (+ native-script dictionary for India, data version *T)
+   │
+   ├─ forward retrieval  (S1 → top-30 S2/S3, rare-term IDF + skeleton keys)
+   ├─ reverse retrieval  (S2/S3 → top-3 S1)
+   └─ exact-key channel  (name-skeleton × house-number keys, frequency-capped)
+          │ union per (country, source)
+          ▼
+   stage 1  cheap LightGBM on channel + competition features  → keep p ≥ 1e-3 (candidate_pairs.tsv)
+   stage 2  LightGBM on 73 string/address/context features     → p2
+   anchors  p2 ≥ 0.9 query the pools for sibling records       → extra candidates
+   stage 3  LightGBM + sibling features (collective ER)         → final probability
+   decision expected-F0.5 prefix per entity + one-owner exclusivity → matching_results.tsv
+```
+
+Key modules: `src/v3.py`, `src/key_channel.py`, `src/stage1.py`, `src/collective.py`,
+`src/anchor_pass.py`, `src/translit.py`, `src/infer_v3.py` (test inference, checkpointed per part).
+
+## Pipeline (v1, historical)
 
 ```
 raw TSV ──► audit ──► prep (normalise, split by country)

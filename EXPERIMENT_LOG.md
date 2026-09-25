@@ -33,6 +33,8 @@ Blocking experiments report pair recall on 5k India S1 queries against the full 
 | E025 | 09-26 03:50 | Loss budget of E023B by error type | counterfactual fixes | blocking misses 0.018 (mostly *easy* pairs lost to top-30 saturation); matcher other .0064; FP .0054; ambiguous ≈.005 | drives v3 |
 | E026 | 09-26 03:52 | Which channel recovers the easy blocking misses? | reverse top-3 / exact keys on E023B misses | reverse: 65 % US, 25 % India of 'other'; keys (capped 10/60): +0.45 pt recall on India S2 | both into v3 |
 | E030s2 | 09-26 04:35 | v3: forward ∪ reverse ∪ key candidates, cheap stage 1, 300k entities | stage 2 only | **0.9722** (60k holdout) / **0.9720** (original 30k); cand recall .9717; oracle .9901; US .9775 / India .9641 | **Champion** |
+| E027 | 09-26 03:40 | Is native-script transliteration deterministic (dictionary-fixable)? | align Indic-script S2/S3 names with S1 names in train GT | 18.2 % of India S2/S3 names Indic; mapping 96.6 % deterministic over 1,347 tokens; test coverage 96.4 % | **Yes → E032** |
+| E030lb | 09-26 04:55 | Loss budget of v3 stage 2 | counterfactual fixes, 60k holdout | blocking .0114 (native-script .0037, empty-addr .0026, other .0051); matcher .0116 (empty-addr .0049, other .0060); FP .0067 | drives E032 + stage 3 |
 ## Details
 
 ### E001 (failed)
@@ -88,3 +90,13 @@ reranker, not more keys.
 - The gain is entirely from the added candidates (E023A ≈ E021p).
 - France (no labels) — label-free: 94.2 % of entities have an anchor (train 92.9–93.4 %),
   3.15 anchors/entity (train 3.05–3.13), 3.6 new candidates/entity (train 4.8): mechanism transfers.
+
+### E030 / E032 — v3 pipeline and native-script dictionary
+- v3 candidates = forward top-30 ∪ reverse top-3 ∪ exact keys (caps 10/60). Stage 1 on cheap
+  channel/competition features (negative-sampled 25 %, weighted, cross-fitted) keeps 21.2 % of
+  24.6 M union pairs with 99.84 % of positives; string features only for survivors; 300k entities.
+- Stage 2 alone: **0.9722** (60k holdout), 0.9720 on the original 30k (E023B 0.9669, E013 0.9614).
+- Dictionary (E032, `src/translit.py`): 1,316 native tokens kept (count ≥ 3, share ≥ 0.8), learned
+  from 551k aligned training pairs only. Applied as a parallel data version (`trainT`/`testT`):
+  e.g. `raam maarketting praaivett limittedd` → `ram marketing private limited`;
+  1.6 M train+test India names rewritten. Original files untouched (rollback).
