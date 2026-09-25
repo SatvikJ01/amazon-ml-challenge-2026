@@ -23,7 +23,7 @@ PROCESSED = ROOT / "data" / "processed"
 EXPERIMENTS = ROOT / "experiments"
 
 CONTEXT_PREFIXES = ("blk_score_gap", "blk_score_rank", "name_tset_", "addr_tset_", "name_idf_u_",
-                    "addr_idf_u_", "blk_score_src_gap", "n_cands")
+                    "addr_idf_u_", "blk_score_src_gap", "n_cands", "ret_score_")
 
 
 def main() -> None:

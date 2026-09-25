@@ -51,7 +51,7 @@ def enforce_exclusivity(s1: np.ndarray, cand: np.ndarray, prob: np.ndarray) -> n
 def score_split(exp: str, split: str, tag: str, depth: int, chunk: int,
                 countries: list[str] | None = None, keep: np.ndarray | None = None,
                 part_entities: int = 200_000, stage1_model: str | None = None,
-                ckpt_dir: Path | None = None) -> pd.DataFrame:
+                ckpt_dir: Path | None = None, use_reverse: bool = False) -> pd.DataFrame:
     """Score every candidate pair of the given countries with a saved model.
 
     Entities are processed in parts of ``part_entities`` through the ``keep`` path
@@ -75,8 +75,12 @@ def score_split(exp: str, split: str, tag: str, depth: int, chunk: int,
                 print(f"  {country} part {pi}: checkpoint reused", flush=True)
                 continue
             parts, n = [], 0
+            s1_feats = None
+            if stage1_model is not None:
+                s1_feats = json.loads((Path(stage1_model).parent / "report.json").read_text())["features"]
             for df in featurize_country(split, tag, country, depth, part, chunk,
-                                        stage1_model=stage1_model):
+                                        stage1_model=stage1_model, use_reverse=use_reverse,
+                                        stage1_features=s1_feats):
                 parts.append(pd.DataFrame({
                     "s1": df["s1"].to_numpy(), "cand": df["cand"].to_numpy(),
                     "src": df["src"].to_numpy(),
@@ -111,6 +115,7 @@ def main() -> None:
     ap.add_argument("--reuse-scores", action="store_true",
                     help="reuse experiments/<exp>/test_scores.parquet if present")
     ap.add_argument("--stage1", default=None, help="stage-1 experiment dir (cascade)")
+    ap.add_argument("--reverse", action="store_true", help="union the reverse retrieval channel")
     ap.add_argument("--countries", nargs="*", default=None,
                     help="score only these countries (checkpoints), then exit without writing")
     ap.add_argument("--note", default="")
@@ -118,16 +123,16 @@ def main() -> None:
 
     t0 = time.time()
     s1m = str(EXPERIMENTS / args.stage1 / "model.txt") if args.stage1 else None
-    ckpt = EXPERIMENTS / args.exp / f"test_scores_d{args.depth}{'_casc' if args.stage1 else ''}"
+    ckpt = EXPERIMENTS / args.exp / f"test_scores_d{args.depth}{'_casc' if args.stage1 else ''}{'_rev' if args.reverse else ''}"
     ckpt.mkdir(parents=True, exist_ok=True)
     if args.countries:
         # Scoring-only mode: one country per process keeps the heap fresh.
         score_split(args.exp, "test", args.tag, args.depth, args.chunk_entities,
-                    countries=args.countries, stage1_model=s1m, ckpt_dir=ckpt)
+                    countries=args.countries, stage1_model=s1m, ckpt_dir=ckpt, use_reverse=args.reverse)
         print(f"scored {args.countries} -> {ckpt}")
         return
     sc = score_split(args.exp, "test", args.tag, args.depth, args.chunk_entities,
-                     stage1_model=s1m, ckpt_dir=ckpt)
+                     stage1_model=s1m, ckpt_dir=ckpt, use_reverse=args.reverse)
     assert sc["s1"].nunique() <= 1_732_544
     s1, cand, prob = sc["s1"].to_numpy(), sc["cand"].to_numpy(), sc["prob"].to_numpy()
     del sc

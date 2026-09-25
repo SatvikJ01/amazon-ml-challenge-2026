@@ -240,7 +240,10 @@ def add_context_features(df: pd.DataFrame) -> pd.DataFrame:
     it compares with the entity's other candidates is what separates the true
     match from its nearest distractor."""
     g = df.groupby("s1", sort=False)
-    for col in ("blk_score", "name_tset", "addr_tset", "name_idf_u", "addr_idf_u"):
+    cols = ["blk_score", "name_tset", "addr_tset", "name_idf_u", "addr_idf_u"]
+    if "ret_score" in df.columns:          # reverse channel on: rank by the score every pair has
+        cols.append("ret_score")
+    for col in cols:
         mx = g[col].transform("max")
         df[f"{col}_gap"] = mx - df[col]
         df[f"{col}_rank"] = g[col].rank(ascending=False, method="min").astype(np.float32)

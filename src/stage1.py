@@ -32,6 +32,9 @@ EXPERIMENTS = ROOT / "experiments"
 
 STAGE1_FEATURES = ["blk_score", "blk_rank", "src", "comp_best_other", "comp_margin", "comp_is_top",
                    "comp_n", "blk_score_gap", "blk_score_rank", "blk_score_src_gap"]
+# With the reverse channel (``--reverse``) stage 1 also sees reverse-retrieval evidence.
+STAGE1_FEATURES_REV = STAGE1_FEATURES + ["rev_score", "rev_rank", "in_fwd", "in_rev", "ret_score",
+                                         "ret_score_gap", "ret_score_rank"]
 STAGE1_THRESHOLD = 1e-3
 PARAMS = dict(objective="binary", learning_rate=0.1, num_leaves=63, min_data_in_leaf=200,
               feature_fraction=0.9, bagging_fraction=0.8, bagging_freq=1, num_threads=12,
@@ -45,6 +48,10 @@ def add_stage1_context(df: pd.DataFrame) -> pd.DataFrame:
     df["blk_score_rank"] = g.rank(ascending=False, method="min").astype(np.float32)
     df["blk_score_src_gap"] = (df.groupby(["s1", "src"], sort=False)["blk_score"].transform("max")
                                - df["blk_score"]).astype(np.float32)
+    if "ret_score" in df.columns:
+        r = df.groupby("s1", sort=False)["ret_score"]
+        df["ret_score_gap"] = (r.transform("max") - df["ret_score"]).astype(np.float32)
+        df["ret_score_rank"] = r.rank(ascending=False, method="min").astype(np.float32)
     return df
 
 
@@ -59,14 +66,16 @@ def main() -> None:
     ap.add_argument("--tag", default="trn2")
     ap.add_argument("--out", default="E013_stage1")
     ap.add_argument("--countries", nargs="*", default=["India", "US"])
+    ap.add_argument("--reverse", action="store_true")
     args = ap.parse_args()
+    feat_list = STAGE1_FEATURES_REV if args.reverse else STAGE1_FEATURES
     out = EXPERIMENTS / args.out
     out.mkdir(parents=True, exist_ok=True)
 
     df = pd.concat([pd.read_parquet(PROCESSED / f"feats_{args.tag}_{c}.parquet",
-                                    columns=["s1", "cand", "label"] + STAGE1_FEATURES)
+                                    columns=["s1", "cand", "label"] + feat_list)
                     for c in args.countries], ignore_index=True)
-    X = df[STAGE1_FEATURES].to_numpy(np.float32)
+    X = df[feat_list].to_numpy(np.float32)
     y = df["label"].to_numpy()
     s1 = df["s1"].to_numpy()
     fold = entity_fold(s1, 5)
@@ -83,7 +92,7 @@ def main() -> None:
 
     keep = oof >= STAGE1_THRESHOLD
     rep = {"threshold": STAGE1_THRESHOLD, "pairs_kept": float(keep.mean()),
-           "pos_recall": float(keep[y == 1].mean()), "features": STAGE1_FEATURES}
+           "pos_recall": float(keep[y == 1].mean()), "features": feat_list}
     pd.DataFrame({"s1": s1, "cand": df["cand"].to_numpy(), "p1": oof}).to_parquet(out / "oof_p1.parquet", index=False)
     (out / "report.json").write_text(json.dumps(rep, indent=2))
     print(json.dumps(rep, indent=2))

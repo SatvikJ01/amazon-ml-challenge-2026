@@ -41,6 +41,7 @@ def main() -> None:
     ap.add_argument("--depth", type=int, default=30)
     ap.add_argument("--chunk-entities", type=int, default=40_000)
     ap.add_argument("--stage1", default=None, help="stage-1 experiment dir (cascade)")
+    ap.add_argument("--reverse", action="store_true")
     args = ap.parse_args()
 
     t0 = time.time()
@@ -51,7 +52,7 @@ def main() -> None:
     else:
         s1m = str(EXPERIMENTS / args.stage1 / "model.txt") if args.stage1 else None
         sc = score_split(args.exp, "train", "trnall", args.depth, args.chunk_entities, [args.country],
-                         stage1_model=s1m)
+                         stage1_model=s1m, use_reverse=args.reverse)
         sc.to_parquet(score_path, index=False)
     print(f"scored {len(sc):,} pairs ({time.time() - t0:.0f}s)", flush=True)
 

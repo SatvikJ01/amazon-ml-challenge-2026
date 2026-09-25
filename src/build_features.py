@@ -25,7 +25,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from .candidates import cand_path, countries_for, read_cands
+from .candidates import cand_path, countries_for, read_cands, rev_path
 from .features import TokenStats, add_context_features, pair_features
 from .ids import OFFSET
 
@@ -97,18 +97,57 @@ def competition_features(s1: np.ndarray, cand: np.ndarray, score: np.ndarray,
     })
 
 
+def _union_reverse(fwd: pd.DataFrame, rev: pd.DataFrame) -> pd.DataFrame:
+    """Forward ∪ reverse candidates for one (country, source), NumPy only.
+
+    Pairs are keyed as ``(position of s1 among sorted S1 codes) << 34 | cand
+    number`` -- cand numbers are < 1e10 < 2**34 and a country block has < 2**21
+    S1 entities, so the key is unique and fits int64.  A pandas outer merge on
+    40 M forward rows would not fit the memory cap.
+    """
+    s1u = np.unique(np.concatenate([fwd["s1"].to_numpy(), rev["s1"].to_numpy()]))
+    def key(df):
+        return (np.searchsorted(s1u, df["s1"].to_numpy()).astype(np.int64) << 34) | (df["cand"].to_numpy() % OFFSET)
+    fk, rk = key(fwd), key(rev)
+    order = np.argsort(fk, kind="stable")
+    pos = np.minimum(np.searchsorted(fk[order], rk), fk.size - 1)
+    hit = fk[order][pos] == rk
+    rev_score = np.full(fk.size, np.nan, np.float32)
+    rev_rank = np.full(fk.size, 9, np.int16)
+    rev_score[order[pos[hit]]] = rev["rev_score"].to_numpy()[hit]
+    rev_rank[order[pos[hit]]] = rev["rev_rank"].to_numpy()[hit]
+    out_f = fwd.assign(rev_score=rev_score, rev_rank=rev_rank)
+    only = rev[~hit]
+    out_r = pd.DataFrame({
+        "s1": only["s1"].to_numpy(), "cand": only["cand"].to_numpy(), "src": only["src"].to_numpy(),
+        "blk_score": np.full(len(only), np.nan, np.float32), "blk_rank": np.full(len(only), 99, np.int16),
+        "rev_score": only["rev_score"].to_numpy(), "rev_rank": only["rev_rank"].to_numpy(),
+    })
+    df = pd.concat([out_f, out_r], ignore_index=True)
+    df["in_fwd"] = df["blk_score"].notna().astype(np.int8)
+    df["in_rev"] = df["rev_score"].notna().astype(np.int8)
+    # Retrieval score usable for every pair: forward cosine, else reverse cosine.
+    df["ret_score"] = df["blk_score"].fillna(df["rev_score"]).astype(np.float32)
+    return df
+
+
 def _load_source_cands(tag: str, country: str, source: int, depth: int,
-                       keep: np.ndarray | None) -> pd.DataFrame:
+                       keep: np.ndarray | None, use_reverse: bool = False) -> pd.DataFrame:
     """Candidates of one target source with competition features attached,
     restricted to the ``keep`` entities.  S2 and S3 ids are disjoint, so the
     per-candidate aggregates can be computed one source at a time, which halves
-    the peak memory of the sort."""
+    the peak memory of the sort.  With ``use_reverse`` the reverse channel is
+    unioned in and competition features use ``ret_score``."""
     df = pd.read_parquet(cand_path(tag, country, source))
     if depth <= int(df["blk_rank"].max()):
         df = df[df["blk_rank"] < depth].reset_index(drop=True)
+    score_col = "blk_score"
+    if use_reverse:
+        df = _union_reverse(df, pd.read_parquet(rev_path(tag, country, source)))
+        score_col = "ret_score"
     rows = np.flatnonzero(np.isin(df["s1"].to_numpy(), keep)) if keep is not None else None
     comp = competition_features(df["s1"].to_numpy(), df["cand"].to_numpy(),
-                                df["blk_score"].to_numpy(), rows)
+                                df[score_col].to_numpy(), rows)
     if rows is not None:
         df = df.iloc[rows].reset_index(drop=True)
     out = pd.concat([df, comp], axis=1)
@@ -135,20 +174,22 @@ def _load_texts_for(split: str, country: str, s1_codes: np.ndarray, cand_codes: 
 
 def featurize_country(split: str, tag: str, country: str, depth: int,
                       keep: np.ndarray | None = None, chunk_entities: int = 40_000,
-                      with_labels: bool = False, stage1_model: str | None = None):
+                      with_labels: bool = False, stage1_model: str | None = None,
+                      use_reverse: bool = False, stage1_features: list[str] | None = None):
     """Yield feature frames for one country block, ``chunk_entities`` at a time.
 
     Shared by training (frames are written to disk) and inference (each frame is
     scored and dropped), so both paths compute identical features.
     """
-    cands = pd.concat([_load_source_cands(tag, country, s, depth, keep) for s in (2, 3)],
+    cands = pd.concat([_load_source_cands(tag, country, s, depth, keep, use_reverse) for s in (2, 3)],
                       ignore_index=True)
     cands = cands.sort_values(["s1", "src", "blk_rank"], kind="stable").reset_index(drop=True)
     if stage1_model is not None:
         import lightgbm as lgb
         from .stage1 import STAGE1_FEATURES, STAGE1_THRESHOLD, add_stage1_context
         cands = add_stage1_context(cands)
-        p1 = lgb.Booster(model_file=stage1_model).predict(cands[STAGE1_FEATURES].to_numpy(np.float32))
+        p1 = lgb.Booster(model_file=stage1_model).predict(
+            cands[stage1_features or STAGE1_FEATURES].to_numpy(np.float32))
         cands = cands[p1 >= STAGE1_THRESHOLD].drop(
             columns=["blk_score_gap", "blk_score_rank", "blk_score_src_gap"]).reset_index(drop=True)
         del p1
@@ -192,6 +233,7 @@ def main() -> None:
     ap.add_argument("--entities", default=None,
                     help="npy of S1 codes to featurise (default: all in the candidate file)")
     ap.add_argument("--out-tag", default=None, help="output tag (default: --tag)")
+    ap.add_argument("--reverse", action="store_true", help="union the reverse retrieval channel")
     args = ap.parse_args()
     keep = np.load(args.entities) if args.entities else None
     out_tag = args.out_tag or args.tag
@@ -211,7 +253,8 @@ def main() -> None:
             # Stream chunks to disk: concatenating them in RAM would push the
             # US block over the memory cap.
             for df in featurize_country(args.split, args.tag, country, args.depth, keep,
-                                        args.chunk_entities, with_labels=(args.split == "train")):
+                                        args.chunk_entities, with_labels=(args.split == "train"),
+                                        use_reverse=args.reverse):
                 table = pa.Table.from_pandas(df, preserve_index=False)
                 if writer is None:
                     writer = pq.ParquetWriter(tmp, table.schema, compression="zstd")
