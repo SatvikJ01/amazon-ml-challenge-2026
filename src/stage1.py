@@ -55,10 +55,24 @@ def add_stage1_context(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def _fit(X, y, es_mask):
-    return lgb.train(PARAMS, lgb.Dataset(X[~es_mask], y[~es_mask]), 1000,
-                     valid_sets=[lgb.Dataset(X[es_mask], y[es_mask])],
+def _fit(X, y, es_mask, w=None):
+    w = np.ones(len(y), np.float32) if w is None else w
+    return lgb.train(PARAMS, lgb.Dataset(X[~es_mask], y[~es_mask], weight=w[~es_mask]), 1000,
+                     valid_sets=[lgb.Dataset(X[es_mask], y[es_mask], weight=w[es_mask])],
                      callbacks=[lgb.early_stopping(50, verbose=False)])
+
+
+def _sample(idx: np.ndarray, y: np.ndarray, neg_frac: float, rng) -> tuple[np.ndarray, np.ndarray]:
+    """All positives + a ``neg_frac`` sample of negatives, negatives weighted 1/neg_frac
+    so predicted probabilities stay calibrated."""
+    if neg_frac >= 1.0:
+        return idx, np.ones(idx.size, np.float32)
+    pos = idx[y[idx] == 1]
+    neg = idx[y[idx] == 0]
+    neg = neg[rng.random(neg.size) < neg_frac]
+    sel = np.sort(np.concatenate([pos, neg]))
+    w = np.where(y[sel] == 1, 1.0, 1.0 / neg_frac).astype(np.float32)
+    return sel, w
 
 
 def main() -> None:
@@ -68,6 +82,7 @@ def main() -> None:
     ap.add_argument("--countries", nargs="*", default=["India", "US"])
     ap.add_argument("--reverse", action="store_true")
     ap.add_argument("--v3", action="store_true", help="multi-channel (forward/reverse/key) feature set")
+    ap.add_argument("--neg-frac", type=float, default=1.0, help="negative sampling rate for training folds")
     args = ap.parse_args()
     if args.v3:
         from .v3 import STAGE1_V3
@@ -77,28 +92,45 @@ def main() -> None:
     out = EXPERIMENTS / args.out
     out.mkdir(parents=True, exist_ok=True)
 
-    df = pd.concat([pd.read_parquet(PROCESSED / f"feats_{args.tag}_{c}.parquet",
-                                    columns=["s1", "cand", "label"] + feat_list)
-                    for c in args.countries], ignore_index=True)
-    X = df[feat_list].to_numpy(np.float32)
-    y = df["label"].to_numpy()
-    s1 = df["s1"].to_numpy()
+    # Column-wise load into a pre-allocated float32 matrix (a frame concat of
+    # 24.5 M rows would copy everything and exceed the memory cap).
+    import gc
+    import pyarrow.parquet as pq
+    paths = [PROCESSED / f"feats_{args.tag}_{c}.parquet" for c in args.countries]
+    sizes = [pq.ParquetFile(p).metadata.num_rows for p in paths]
+    n = sum(sizes)
+    X = np.empty((n, len(feat_list)), np.float32)
+    y = np.empty(n, np.int8); s1 = np.empty(n, np.int64); cand = np.empty(n, np.int64)
+    off = 0
+    for p, sz in zip(paths, sizes):
+        for j, col in enumerate(feat_list):
+            X[off:off + sz, j] = pq.read_table(p, columns=[col]).column(col).to_numpy()
+        y[off:off + sz] = pq.read_table(p, columns=["label"]).column("label").to_numpy()
+        s1[off:off + sz] = pq.read_table(p, columns=["s1"]).column("s1").to_numpy()
+        cand[off:off + sz] = pq.read_table(p, columns=["cand"]).column("cand").to_numpy()
+        off += sz
+    gc.collect()
+    rng = np.random.default_rng(0)
     fold = entity_fold(s1, 5)
     es = entity_fold(s1 * 7 + 3, 10) == 0
+    print(f"stage 1: {n:,} pairs x {len(feat_list)} features", flush=True)
 
-    oof = np.zeros(len(df), np.float32)
+    oof = np.zeros(n, np.float32)
     for k in range(5):
-        tr = fold != k
-        m = _fit(X[tr], y[tr], es[tr])
-        oof[~tr] = m.predict(X[~tr], num_iteration=m.best_iteration)
+        sel, w = _sample(np.flatnonzero(fold != k), y, args.neg_frac, rng)
+        m = _fit(X[sel], y[sel], es[sel], w)
+        te = np.flatnonzero(fold == k)
+        oof[te] = m.predict(X[te], num_iteration=m.best_iteration)
         m.save_model(str(out / f"fold{k}.txt"), num_iteration=m.best_iteration)
-    full = _fit(X, y, es)
+        del sel, w
+    sel, w = _sample(np.arange(len(y)), y, args.neg_frac, rng)
+    full = _fit(X[sel], y[sel], es[sel], w)
     full.save_model(str(out / "model.txt"), num_iteration=full.best_iteration)
 
     keep = oof >= STAGE1_THRESHOLD
     rep = {"threshold": STAGE1_THRESHOLD, "pairs_kept": float(keep.mean()),
            "pos_recall": float(keep[y == 1].mean()), "features": feat_list}
-    pd.DataFrame({"s1": s1, "cand": df["cand"].to_numpy(), "p1": oof}).to_parquet(out / "oof_p1.parquet", index=False)
+    pd.DataFrame({"s1": s1, "cand": cand, "p1": oof}).to_parquet(out / "oof_p1.parquet", index=False)
     (out / "report.json").write_text(json.dumps(rep, indent=2))
     print(json.dumps(rep, indent=2))
 

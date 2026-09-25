@@ -100,6 +100,8 @@ def main() -> None:
     ap.add_argument("--holdout-fold", type=int, default=0)
     ap.add_argument("--rounds", type=int, default=3000)
     ap.add_argument("--drop-features", nargs="*", default=[])
+    ap.add_argument("--model", choices=["lgb", "xgb"], default="lgb",
+                    help="xgb = XGBoost on the GPU (second model family for ensembling)")
     args = ap.parse_args()
 
     t0 = time.time()
@@ -158,14 +160,36 @@ def main() -> None:
     print(f"train pairs {n_tr:,}  early-stop pairs {n_es:,}  features {len(feats)}  "
           f"pos_rate {y_tr.mean():.4f}", flush=True)
 
-    dtr = lgb.Dataset(X_tr, y_tr, feature_name=feats, free_raw_data=True)
-    dva = lgb.Dataset(X_es, y_es, reference=dtr)
-    model = lgb.train(
-        LGB_PARAMS, dtr, num_boost_round=args.rounds, valid_sets=[dva],
-        callbacks=[lgb.early_stopping(100, verbose=False), lgb.log_evaluation(200)],
-    )
-    del dtr, dva, X_tr, y_tr, X_es, y_es
-    model.save_model(str(out_dir / "model.txt"))
+    if args.model == "xgb":
+        import xgboost as xgb
+        params = dict(objective="binary:logistic", eval_metric="logloss", tree_method="hist", device="cuda",
+                      learning_rate=0.05, max_depth=9, min_child_weight=5, subsample=0.8,
+                      colsample_bytree=0.8, reg_lambda=1.0, max_bin=128, seed=0)
+        dtr = xgb.QuantileDMatrix(X_tr, y_tr, max_bin=128, feature_names=feats)
+        dva = xgb.QuantileDMatrix(X_es, y_es, ref=dtr, max_bin=128, feature_names=feats)
+        booster = xgb.train(params, dtr, num_boost_round=args.rounds, evals=[(dva, "es")],
+                            early_stopping_rounds=100, verbose_eval=200)
+        del dtr, dva, X_tr, y_tr, X_es, y_es
+        booster.save_model(str(out_dir / "model.json"))
+
+        class _M:  # minimal adapter so the evaluation code below is shared
+            best_iteration = booster.best_iteration
+            def predict(self, X, num_iteration=None):
+                return booster.predict(xgb.DMatrix(X, feature_names=feats),
+                                       iteration_range=(0, booster.best_iteration + 1))
+            def feature_importance(self, kind):
+                sc = booster.get_score(importance_type="gain")
+                return np.array([sc.get(f, 0.0) for f in feats])
+        model = _M()
+    else:
+        dtr = lgb.Dataset(X_tr, y_tr, feature_name=feats, free_raw_data=True)
+        dva = lgb.Dataset(X_es, y_es, reference=dtr)
+        model = lgb.train(
+            LGB_PARAMS, dtr, num_boost_round=args.rounds, valid_sets=[dva],
+            callbacks=[lgb.early_stopping(100, verbose=False), lgb.log_evaluation(200)],
+        )
+        del dtr, dva, X_tr, y_tr, X_es, y_es
+        model.save_model(str(out_dir / "model.txt"))
 
     ev = pd.concat([e for e, _ in ev_parts], ignore_index=True)
     ev["prob"] = np.concatenate([model.predict(X, num_iteration=model.best_iteration)

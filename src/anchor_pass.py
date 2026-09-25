@@ -111,7 +111,7 @@ def retrieve(split: str, country: str) -> pd.DataFrame:
                                                          anc_hits=("anc_score", "size"))
 
 
-def competition_lookup(country: str, q: pd.DataFrame, tag: str = "trnall") -> pd.DataFrame:
+def competition_lookup(country: str, q: pd.DataFrame, tag: str = "trnall") -> pd.DataFrame:  # noqa: D401
     """blk_score / blk_rank / comp_* for arbitrary (s1, cand) pairs.  Identical to
     ``competition_features`` for pairs present in the forward table; for pairs the
     forward pass never retrieved, own score is NaN and comp_* describe how the
@@ -154,17 +154,18 @@ def competition_lookup(country: str, q: pd.DataFrame, tag: str = "trnall") -> pd
     return pd.concat(out, ignore_index=True)
 
 
-def _new_pair_features(country: str, new: pd.DataFrame) -> pd.DataFrame:
+def _new_pair_features(country: str, new: pd.DataFrame, split: str = "train", tag: str = "trnall",
+                       with_labels: bool = True) -> pd.DataFrame:
     """Full stage-2 feature set for anchor-only pairs, computed in memory-bounded
     steps (competition lookup, then text features), each freed before the next."""
-    comp = competition_lookup(country, new[["s1", "cand"]])
+    comp = competition_lookup(country, new[["s1", "cand"]], tag=tag)
     new = new.merge(comp, on=["s1", "cand"], how="left")
     del comp
     gc.collect()
-    s1t = pd.read_parquet(PROCESSED / f"train_s1_{country}.parquet")
+    s1t = pd.read_parquet(PROCESSED / f"{split}_s1_{country}.parquet")
     stats = TokenStats(s1t["name_norm"].to_numpy(), s1t["addr_norm"].to_numpy())
     s1t = s1t[np.isin(s1t["code"].to_numpy(), new["s1"].unique())].set_index("code")
-    ct = _texts_full("train", country, new["cand"].to_numpy())
+    ct = _texts_full(split, country, new["cand"].to_numpy())
     qx, cx = s1t.loc[new["s1"].to_numpy()], ct.loc[new["cand"].to_numpy()]
     pf = pair_features(qx["name_norm"].to_numpy(), qx["addr_norm"].to_numpy(),
                        cx["name_norm"].to_numpy(), cx["addr_norm"].to_numpy(), cx["nonascii"].to_numpy(), stats)
@@ -172,7 +173,8 @@ def _new_pair_features(country: str, new: pd.DataFrame) -> pd.DataFrame:
     gc.collect()
     new = pd.concat([new.reset_index(drop=True), pf], axis=1)
     new["src"] = (new["cand"] // OFFSET).astype(np.int8)
-    new["label"] = label_pairs(new["s1"].to_numpy(), new["cand"].to_numpy())
+    if with_labels:
+        new["label"] = label_pairs(new["s1"].to_numpy(), new["cand"].to_numpy())
     new["from_anchor_only"] = np.float32(1)
     new["p2"] = np.float32(np.nan)
     return new

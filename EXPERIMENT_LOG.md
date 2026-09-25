@@ -29,6 +29,10 @@ Blocking experiments report pair recall on 5k India S1 queries against the full 
 | E020 | 09-26 ~00:30 | Reverse-union retrain | features with reverse channel | India built; **US feature build OOM (5.5 GB)** → chain aborted; not evaluated | pending fix |
 | E023A | 09-26 03:20 | Do anchor-retrieval features help on existing candidates? | predicted anchors (OOF p2 ≥ 0.9), anchor feats on E021p survivors | 0.9631 (E021p 0.9633) → no gain without new candidates | No |
 | E023B | 09-26 03:29 | Do **predicted**-anchor candidates help? | + anchor top-3 new pairs (+4.8/entity), full feats, same holdout | **0.9669** (+0.0036 vs E021p, +0.0055 vs E013); cand recall .945→.9605; oracle .9806→.9846; FP 527→571; FN 9045→7566; singletons .9661→.9727; US .9705 / India .9616 | **Champion (holdout)** |
+| E024 | 09-26 04:12 | Does a GPU XGBoost second model ensemble with LightGBM? | XGB (CUDA) on E023B data, same holdout | pred corr 0.9989; avg +0.00013 | Rejected (no diversity) |
+| E025 | 09-26 03:50 | Loss budget of E023B by error type | counterfactual fixes | blocking misses 0.018 (mostly *easy* pairs lost to top-30 saturation); matcher other .0064; FP .0054; ambiguous ≈.005 | drives v3 |
+| E026 | 09-26 03:52 | Which channel recovers the easy blocking misses? | reverse top-3 / exact keys on E023B misses | reverse: 65 % US, 25 % India of 'other'; keys (capped 10/60): +0.45 pt recall on India S2 | both into v3 |
+| E030s2 | 09-26 04:35 | v3: forward ∪ reverse ∪ key candidates, cheap stage 1, 300k entities | stage 2 only | **0.9722** (60k holdout) / **0.9720** (original 30k); cand recall .9717; oracle .9901; US .9775 / India .9641 | **Champion** |
 ## Details
 
 ### E001 (failed)
