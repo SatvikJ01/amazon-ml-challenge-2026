@@ -1,0 +1,28 @@
+{
+  "residual_misses": 61798,
+  "entities": 53906,
+  "anchor_queries": 139029,
+  "by_k": {
+    "1": {
+      "recovered_frac_of_residual": 0.16827405417651056,
+      "pairs_per_entity": 2.6856194115682857
+    },
+    "2": {
+      "recovered_frac_of_residual": 0.24589792549920708,
+      "pairs_per_entity": 4.2438318554520835
+    },
+    "3": {
+      "recovered_frac_of_residual": 0.2932619178614195,
+      "pairs_per_entity": 5.873186658256966
+    },
+    "4": {
+      "recovered_frac_of_residual": 0.3214828958865983,
+      "pairs_per_entity": 7.531888843542463
+    },
+    "5": {
+      "recovered_frac_of_residual": 0.33967118676979835,
+      "pairs_per_entity": 9.193280896375171
+    }
+  },
+  "elapsed_sec": 112.8
+}

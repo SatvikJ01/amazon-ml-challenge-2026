@@ -21,6 +21,11 @@ Blocking experiments report pair recall on 5k India S1 queries against the full 
 | E017b | 09-25 21:15 | Does reverse retrieval recover blocking misses? | India S2, every S2 record → top-k S1 | recall .9464 → .9536 (k1) / .9583 (k3) / .9608 (k5) | **Yes (k=3)** |
 | E018 | 09-25 21:20 | Char n-gram channel for near-miss spellings? | skeleton 3-grams + name 4-grams, 20k queries | +0.0033 recall at +20 cands/entity | Rejected |
 | E019 | 09-25 21:25 | Are residual misses reachable via sibling records? | residual misses vs retrieved true siblings | 93 % have a retrieved sibling; 51 % sim ≥ 80; 33 % ≥15 pts closer to sibling than to S1 | **Pursue (collective ER)** |
+| E021 | 09-25 22:00 | Do sibling (collective) features help the matcher? | stage 3 = stage-2 feats + OOF p2 + 9 sibling feats (anchors p2 ≥ 0.9), same holdout | **0.96332** (+0.0019 vs E013); multi-match up, singletons −0.003 | **Keep (day-2 rebuild)** |
+| E021c | 09-25 22:03 | Is E021's gain just stacking? | stage 3 without sibling feats | 0.96102 (−0.0004) → gain is from sibling feats (+0.0023) | control |
+| E021L | 09-25 22:03 | Can a light stage 3 (16 feats) run on saved test scores? | p2 + sibling + retrieval feats only | 0.96176 (+0.0003, noise) → not worth a submission | Rejected |
+| E022 | 09-25 22:06 | Do anchors retrieve what S1 text misses? | true retrieved siblings query the S2 pool (India), top-k | recovers 16.8 % (k1) / **29.3 % (k3)** / 34.0 % (k5) of residual misses → pair recall ≈ .958 → .970 (upper bound) | **Pursue** |
+| — | 09-25 21:40 | LB check of decision rule | day1_s2 (expF + exclusivity) | public **0.953** (s1: 0.952) | kept |
 ## Details
 
 ### E001 (failed)

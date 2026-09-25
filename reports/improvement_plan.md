@@ -36,3 +36,18 @@ sibling channels).
 Tonight: implement reverse channel in production blocking and launch train + test reverse runs
 (~50 min, checkpointed per country/source). Day 2 morning: union features + stage-1/2 retrain
 (→ day2_s1), then OOF sibling features (→ day2_s2), then sibling-query retrieval.
+
+## Update 22:10 — evidence after pilots
+| Lever | Evidence | Status |
+|---|---|---|
+| Reverse retrieval top-3 | recall .946 → .958 (India S2) | production blocking running; E020 queued |
+| Sibling features (stage 3) | +0.0023 over matched control (E021 vs E021c) | needs full stage-2 features at test time → day-2 rebuild |
+| Anchor-query retrieval top-3 | +29 % of residual misses → recall ≈ .970 (upper bound) | implement as pass 2 |
+| Light stage 3 on saved scores | +0.0003 | rejected; no day-1 submission from it |
+
+Day-2 architecture (two-pass):
+1. Pass 1: forward ∪ reverse candidates → stage 1 → stage 2 → p2; **save stage-2 features per part**.
+2. Anchors = p2 ≥ 0.9 → query the target pools (top-3) → new pairs not in pass 1 → stage-2 features + p2.
+3. Stage 3 (collective) over pass-1 ∪ pass-2 pairs → expF + exclusivity.
+Training mirrors it exactly with cross-fitted p2 on the 150k-entity sample.
+Stop rule: promote only if holdout F0.5 beats E021 (0.9633) by ≥ 0.002.
