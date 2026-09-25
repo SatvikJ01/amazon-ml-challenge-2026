@@ -1,0 +1,36 @@
+# --- competition data and materials (never commit) ---
+student_resource/
+dataset/
+data/
+*.zip
+*.pdf
+*.tsv
+
+# --- caches, artefacts, binaries ---
+*.parquet
+*.feather
+*.arrow
+*.npy
+*.npz
+*.pkl
+*.joblib
+*.partial
+experiments/**/model.txt
+experiments/**/fold*.txt
+experiments/*_model.txt
+models/
+features/
+output/
+submissions/*/
+logs/
+notebooks/.ipynb_checkpoints/
+
+# --- environment ---
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+*.key
+*.pem

@@ -1,0 +1,112 @@
+{
+  "exp": "E013_cascade_stage2",
+  "tag": "trn2c",
+  "train_countries": [
+    "India",
+    "US"
+  ],
+  "eval_countries": [
+    "India",
+    "US"
+  ],
+  "loco": false,
+  "n_features": 63,
+  "best_iteration": 1490,
+  "n_eval_entities": 30007,
+  "blocking_ceiling": {
+    "max_f05": 0.9805962028598105,
+    "pair_recall": 0.944999423675414,
+    "n_true_pairs": 104108,
+    "n_recovered_pairs": 98382,
+    "n_missed_pairs": 5726,
+    "mean_candidates_per_entity": 15.032892325124138,
+    "total_candidate_pairs": 451092
+  },
+  "decision_rules": {
+    "thr_0.2": 0.9463943211995139,
+    "thr_0.3": 0.9532324357943687,
+    "thr_0.4": 0.9573256944174683,
+    "thr_0.5": 0.9597224752757325,
+    "thr_0.6": 0.960983612897938,
+    "thr_0.7": 0.9614169608471483,
+    "expF_m0.0": 0.9612869531303407,
+    "expF_m0.25": 0.910404714602436,
+    "expF_m0.5": 0.9104308887132995
+  },
+  "best_rule": "thr_0.7",
+  "best_f05": 0.9614169608471483,
+  "by_country": {
+    "US": {
+      "f05": 0.9659931330914504,
+      "precision": 0.9856381340245537,
+      "recall": 0.9221297959436986,
+      "n": 17895.0
+    },
+    "India": {
+      "f05": 0.954655847710408,
+      "precision": 0.9790548138013447,
+      "recall": 0.9030867328217036,
+      "n": 12112.0
+    }
+  },
+  "by_n_true": {
+    "4-6": {
+      "f05": 0.9703291702956133,
+      "precision": 0.994430343131936,
+      "recall": 0.9130802328524363,
+      "n": 13170.0
+    },
+    "1": {
+      "f05": 0.8903254075220335,
+      "precision": 0.8888167856370321,
+      "recall": 0.9026606099935107,
+      "n": 1541.0
+    },
+    "2-3": {
+      "f05": 0.9587356320612807,
+      "precision": 0.9830923337910967,
+      "recall": 0.9106820690955051,
+      "n": 12379.0
+    },
+    "7+": {
+      "f05": 0.971517189529347,
+      "precision": 0.9961878764510345,
+      "recall": 0.9069629201208157,
+      "n": 1235.0
+    },
+    "0": {
+      "f05": 0.9690844233055886,
+      "precision": 0.9690844233055886,
+      "recall": 0.9690844233055886,
+      "n": 1682.0
+    }
+  },
+  "micro": {
+    "micro_precision": 0.9924083194779936,
+    "micro_recall": 0.9116014139163177,
+    "micro_f05": 0.975120830524914,
+    "micro_f1": 0.9502901286178462,
+    "tp": 94905,
+    "fp": 726,
+    "fn": 9203
+  },
+  "pair_auc_note": "see holdout_pred.parquet",
+  "elapsed_sec": 445.0,
+  "top_features": {
+    "comp_margin": 7392918.0,
+    "comp_is_top": 1423934.0,
+    "digz_jaccard": 778859.0,
+    "digz_first_sim": 566677.0,
+    "dig_n_c": 531283.0,
+    "name_idf_c": 449226.0,
+    "name_jw": 268640.0,
+    "addr_tset": 140735.0,
+    "name_idf_q": 115289.0,
+    "addr_idf_c": 112209.0,
+    "skel_ratio": 103231.0,
+    "nospace_partial": 102513.0,
+    "name_tsort": 89073.0,
+    "name_ntok_diff": 82091.0,
+    "skel_nospace_partial": 80189.0
+  }
+}

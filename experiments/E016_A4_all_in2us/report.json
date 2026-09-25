@@ -1,0 +1,104 @@
+{
+  "exp": "E016_A4_all_in2us",
+  "tag": "trn2c",
+  "train_countries": [
+    "India"
+  ],
+  "eval_countries": [
+    "US"
+  ],
+  "loco": true,
+  "n_features": 54,
+  "best_iteration": 699,
+  "n_eval_entities": 17895,
+  "blocking_ceiling": {
+    "max_f05": 0.9834920488642633,
+    "pair_recall": 0.9515662611673856,
+    "n_true_pairs": 61899,
+    "n_recovered_pairs": 58901,
+    "n_missed_pairs": 2998,
+    "mean_candidates_per_entity": 15.230734842134675,
+    "total_candidate_pairs": 272554
+  },
+  "decision_rules": {
+    "thr_0.2": 0.9067107866167641,
+    "thr_0.3": 0.9209497476168654,
+    "thr_0.4": 0.9290527063456959,
+    "thr_0.5": 0.9345877200771268,
+    "thr_0.6": 0.9382707749497763,
+    "thr_0.7": 0.9403432149850444,
+    "expF_m0.0": 0.9386046871725273,
+    "expF_m0.25": 0.8931866342876956,
+    "expF_m0.5": 0.8931964295531172
+  },
+  "best_rule": "thr_0.7",
+  "best_f05": 0.9403432149850444,
+  "by_country": {
+    "US": {
+      "f05": 0.9403432149850444,
+      "precision": 0.9652257416297592,
+      "recall": 0.8897631848763304,
+      "n": 17895.0
+    }
+  },
+  "by_n_true": {
+    "4-6": {
+      "f05": 0.9564974160355678,
+      "precision": 0.9847129164764978,
+      "recall": 0.8913162939297223,
+      "n": 7825.0
+    },
+    "1": {
+      "f05": 0.8486938465246483,
+      "precision": 0.8447216196673898,
+      "recall": 0.8806941431670282,
+      "n": 922.0
+    },
+    "2-3": {
+      "f05": 0.9390492451342837,
+      "precision": 0.9671349077090153,
+      "recall": 0.888866268548688,
+      "n": 7368.0
+    },
+    "7+": {
+      "f05": 0.9610885381930632,
+      "precision": 0.9899901113116374,
+      "recall": 0.886369927378101,
+      "n": 734.0
+    },
+    "0": {
+      "f05": 0.8948374760994264,
+      "precision": 0.8948374760994264,
+      "recall": 0.8948374760994264,
+      "n": 1046.0
+    }
+  },
+  "micro": {
+    "micro_precision": 0.975923891861248,
+    "micro_recall": 0.8899497568619849,
+    "micro_f05": 0.9574253605531088,
+    "micro_f1": 0.9309561029194305,
+    "tp": 55087,
+    "fp": 1359,
+    "fn": 6812
+  },
+  "pair_auc_note": "see holdout_pred.parquet",
+  "elapsed_sec": 90.0,
+  "top_features": {
+    "comp_margin": 2473874.0,
+    "comp_is_top": 873280.0,
+    "digz_jaccard": 324462.0,
+    "skel_nospace_partial": 152171.0,
+    "dig_n_c": 141655.0,
+    "skel_ratio": 110737.0,
+    "dig_jaccard": 99949.0,
+    "addr_idf_c": 96845.0,
+    "name_jw": 93528.0,
+    "name_ntok_diff": 81533.0,
+    "name_idf_c": 79623.0,
+    "name_tsort": 72740.0,
+    "addr_tset": 56806.0,
+    "digz_first_sim": 56184.0,
+    "skel_tset": 49910.0
+  }
+}

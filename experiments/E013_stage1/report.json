@@ -1,0 +1,17 @@
+{
+  "threshold": 0.001,
+  "pairs_kept": 0.25210166666666667,
+  "pos_recall": 0.9988195646456554,
+  "features": [
+    "blk_score",
+    "blk_rank",
+    "src",
+    "comp_best_other",
+    "comp_margin",
+    "comp_is_top",
+    "comp_n",
+    "blk_score_gap",
+    "blk_score_rank",
+    "blk_score_src_gap"
+  ]
+}

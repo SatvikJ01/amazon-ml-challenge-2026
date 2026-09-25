@@ -1,0 +1,422 @@
+{
+  "per_file": {
+    "train_S1": {
+      "split": "train",
+      "source": 1,
+      "rows": 2206821,
+      "unique_entity_ids": 2206821,
+      "duplicate_entity_ids": 0,
+      "id_min": 217,
+      "id_max": 999998822,
+      "country_counts": {
+        "US": 1323633,
+        "India": 883188
+      },
+      "name_empty": 0,
+      "name_empty_pct": 0.0,
+      "address_empty": 0,
+      "address_empty_pct": 0.0,
+      "duplicate_name_address_pairs": 0,
+      "duplicate_name_address_pct": 0.0,
+      "duplicate_names": 668017,
+      "name_len": {
+        "mean": 24.05,
+        "p50": 24,
+        "p95": 37,
+        "max": 85
+      },
+      "addr_len": {
+        "mean": 52.08,
+        "p50": 41,
+        "p95": 103,
+        "max": 203
+      },
+      "name_tokens_mean": 3.55,
+      "addr_tokens_mean": 8.03,
+      "name_scripts_50k": {
+        "latin": 50000
+      },
+      "addr_scripts_50k": {
+        "latin": 50000
+      },
+      "name_leading_punct_junk_pct": 0.0,
+      "name_contains_digit_pct": 1.641,
+      "elapsed_sec": 37.9,
+      "cached_parquet": "data/interim/train_s1.parquet"
+    },
+    "train_S2": {
+      "split": "train",
+      "source": 2,
+      "rows": 5034616,
+      "unique_entity_ids": 5034616,
+      "duplicate_entity_ids": 0,
+      "id_min": 576,
+      "id_max": 999999727,
+      "country_counts": {
+        "US": 3016817,
+        "India": 2017799
+      },
+      "name_empty": 0,
+      "name_empty_pct": 0.0,
+      "address_empty": 168967,
+      "address_empty_pct": 3.3561,
+      "duplicate_name_address_pairs": 36650,
+      "duplicate_name_address_pct": 0.728,
+      "duplicate_names": 747146,
+      "name_len": {
+        "mean": 25.07,
+        "p50": 25,
+        "p95": 40,
+        "max": 76
+      },
+      "addr_len": {
+        "mean": 46.23,
+        "p50": 37,
+        "p95": 96,
+        "max": 231
+      },
+      "name_tokens_mean": 3.49,
+      "addr_tokens_mean": 7.28,
+      "name_scripts_50k": {
+        "latin": 45492,
+        "devanagari": 2586,
+        "telugu": 376,
+        "kannada": 352,
+        "gujarati": 307,
+        "tamil": 306,
+        "bengali": 290,
+        "malayalam": 162,
+        "oriya": 69,
+        "gurmukhi": 59,
+        "none": 1
+      },
+      "addr_scripts_50k": {
+        "latin": 47993,
+        "none": 1634,
+        "devanagari": 205,
+        "kannada": 34,
+        "tamil": 32,
+        "telugu": 29,
+        "bengali": 26,
+        "gujarati": 24,
+        "malayalam": 12,
+        "gurmukhi": 7,
+        "oriya": 4
+      },
+      "name_leading_punct_junk_pct": 1.149,
+      "name_contains_digit_pct": 5.082,
+      "elapsed_sec": 80.5,
+      "cached_parquet": "data/interim/train_s2.parquet"
+    },
+    "train_S3": {
+      "split": "train",
+      "source": 3,
+      "rows": 5285603,
+      "unique_entity_ids": 5285603,
+      "duplicate_entity_ids": 0,
+      "id_min": 10,
+      "id_max": 999999866,
+      "country_counts": {
+        "US": 3170056,
+        "India": 2115547
+      },
+      "name_empty": 0,
+      "name_empty_pct": 0.0,
+      "address_empty": 175916,
+      "address_empty_pct": 3.3282,
+      "duplicate_name_address_pairs": 24031,
+      "duplicate_name_address_pct": 0.4547,
+      "duplicate_names": 706520,
+      "name_len": {
+        "mean": 25.2,
+        "p50": 25,
+        "p95": 42,
+        "max": 92
+      },
+      "addr_len": {
+        "mean": 46.72,
+        "p50": 42,
+        "p95": 91,
+        "max": 208
+      },
+      "name_tokens_mean": 3.52,
+      "addr_tokens_mean": 7.17,
+      "name_scripts_50k": {
+        "latin": 47555,
+        "devanagari": 1384,
+        "bengali": 195,
+        "telugu": 186,
+        "kannada": 185,
+        "gujarati": 167,
+        "tamil": 163,
+        "malayalam": 83,
+        "gurmukhi": 45,
+        "oriya": 33,
+        "none": 4
+      },
+      "addr_scripts_50k": {
+        "latin": 48098,
+        "none": 1682,
+        "devanagari": 135,
+        "bengali": 19,
+        "kannada": 16,
+        "tamil": 14,
+        "telugu": 12,
+        "gujarati": 9,
+        "malayalam": 9,
+        "oriya": 4,
+        "gurmukhi": 2
+      },
+      "name_leading_punct_junk_pct": 1.155,
+      "name_contains_digit_pct": 5.042,
+      "elapsed_sec": 113.9,
+      "cached_parquet": "data/interim/train_s3.parquet"
+    },
+    "test_S1": {
+      "split": "test",
+      "source": 1,
+      "rows": 1732544,
+      "unique_entity_ids": 1732544,
+      "duplicate_entity_ids": 0,
+      "id_min": 401,
+      "id_max": 999998909,
+      "country_counts": {
+        "India": 809986,
+        "US": 663106,
+        "France": 259452
+      },
+      "name_empty": 0,
+      "name_empty_pct": 0.0,
+      "address_empty": 0,
+      "address_empty_pct": 0.0,
+      "duplicate_name_address_pairs": 0,
+      "duplicate_name_address_pct": 0.0,
+      "duplicate_names": 494300,
+      "name_len": {
+        "mean": 23.84,
+        "p50": 24,
+        "p95": 36,
+        "max": 88
+      },
+      "addr_len": {
+        "mean": 57.23,
+        "p50": 50,
+        "p95": 105,
+        "max": 238
+      },
+      "name_tokens_mean": 3.52,
+      "addr_tokens_mean": 8.59,
+      "name_scripts_50k": {
+        "latin": 50000
+      },
+      "addr_scripts_50k": {
+        "latin": 50000
+      },
+      "name_leading_punct_junk_pct": 0.002,
+      "name_contains_digit_pct": 1.171,
+      "elapsed_sec": 27.8,
+      "cached_parquet": "data/interim/test_s1.parquet"
+    },
+    "test_S2": {
+      "split": "test",
+      "source": 2,
+      "rows": 4887273,
+      "unique_entity_ids": 4887273,
+      "duplicate_entity_ids": 0,
+      "id_min": 208,
+      "id_max": 999999982,
+      "country_counts": {
+        "India": 2312565,
+        "US": 1871330,
+        "France": 703378
+      },
+      "name_empty": 0,
+      "name_empty_pct": 0.0,
+      "address_empty": 129408,
+      "address_empty_pct": 2.6479,
+      "duplicate_name_address_pairs": 32012,
+      "duplicate_name_address_pct": 0.655,
+      "duplicate_names": 680196,
+      "name_len": {
+        "mean": 25.71,
+        "p50": 25,
+        "p95": 42,
+        "max": 85
+      },
+      "addr_len": {
+        "mean": 50.51,
+        "p50": 43,
+        "p95": 99,
+        "max": 236
+      },
+      "name_tokens_mean": 3.59,
+      "addr_tokens_mean": 7.81,
+      "name_scripts_50k": {
+        "latin": 44440,
+        "devanagari": 3139,
+        "kannada": 461,
+        "tamil": 424,
+        "telugu": 420,
+        "gujarati": 374,
+        "bengali": 356,
+        "malayalam": 200,
+        "oriya": 100,
+        "gurmukhi": 85,
+        "none": 1
+      },
+      "addr_scripts_50k": {
+        "latin": 48163,
+        "none": 1382,
+        "devanagari": 275,
+        "tamil": 37,
+        "bengali": 32,
+        "kannada": 32,
+        "telugu": 30,
+        "gujarati": 23,
+        "malayalam": 14,
+        "oriya": 6,
+        "gurmukhi": 6
+      },
+      "name_leading_punct_junk_pct": 0.859,
+      "name_contains_digit_pct": 3.813,
+      "elapsed_sec": 80.2,
+      "cached_parquet": "data/interim/test_s2.parquet"
+    },
+    "test_S3": {
+      "split": "test",
+      "source": 3,
+      "rows": 5082316,
+      "unique_entity_ids": 5082316,
+      "duplicate_entity_ids": 0,
+      "id_min": 5,
+      "id_max": 999999995,
+      "country_counts": {
+        "India": 2405000,
+        "US": 1945701,
+        "France": 731615
+      },
+      "name_empty": 0,
+      "name_empty_pct": 0.0,
+      "address_empty": 136098,
+      "address_empty_pct": 2.6779,
+      "duplicate_name_address_pairs": 21856,
+      "duplicate_name_address_pct": 0.43,
+      "duplicate_names": 636225,
+      "name_len": {
+        "mean": 25.64,
+        "p50": 25,
+        "p95": 42,
+        "max": 88
+      },
+      "addr_len": {
+        "mean": 48.63,
+        "p50": 43,
+        "p95": 94,
+        "max": 207
+      },
+      "name_tokens_mean": 3.59,
+      "addr_tokens_mean": 7.5,
+      "name_scripts_50k": {
+        "latin": 46941,
+        "devanagari": 1716,
+        "telugu": 273,
+        "kannada": 254,
+        "bengali": 232,
+        "tamil": 209,
+        "gujarati": 182,
+        "malayalam": 111,
+        "oriya": 47,
+        "gurmukhi": 34,
+        "none": 1
+      },
+      "addr_scripts_50k": {
+        "latin": 48353,
+        "none": 1404,
+        "devanagari": 143,
+        "kannada": 23,
+        "telugu": 17,
+        "malayalam": 15,
+        "gujarati": 14,
+        "bengali": 14,
+        "tamil": 10,
+        "oriya": 5,
+        "gurmukhi": 2
+      },
+      "name_leading_punct_junk_pct": 0.938,
+      "name_contains_digit_pct": 3.995,
+      "elapsed_sec": 81.1,
+      "cached_parquet": "data/interim/test_s3.parquet"
+    }
+  },
+  "cross": {
+    "train_test_id_overlap": {
+      "S1": {
+        "train": 2206821,
+        "test": 1732544,
+        "shared_ids": 0
+      },
+      "S2": {
+        "train": 5034616,
+        "test": 4887273,
+        "shared_ids": 0
+      },
+      "S3": {
+        "train": 5285603,
+        "test": 5082316,
+        "shared_ids": 0
+      }
+    },
+    "H2_country_consistency": {
+      "pairs_checked": 7638365,
+      "same_country": 7638365,
+      "cross_country": 0,
+      "cross_country_rate": 0.0,
+      "matched_id_not_found_in_sources": 0
+    },
+    "distractors": {
+      "s2_total": 5034616,
+      "s2_unmatched": 1340997,
+      "s3_total": 5285603,
+      "s3_unmatched": 1340857,
+      "overall_unmatched_rate": 0.259864059086343
+    },
+    "id_leakage_probe": {
+      "true_pair_mean_abs_id_diff": 333182325.0251425,
+      "random_pair_mean_abs_id_diff": 332970619.666915,
+      "true_pair_median": 292879491.0,
+      "random_pair_median": 292393560.0,
+      "ratio": 1.0006358079233515,
+      "verdict": "no id-order leakage detected"
+    },
+    "country_by_split_source": {
+      "train_S1": {
+        "US": 1323633,
+        "India": 883188
+      },
+      "train_S2": {
+        "US": 3016817,
+        "India": 2017799
+      },
+      "train_S3": {
+        "US": 3170056,
+        "India": 2115547
+      },
+      "test_S1": {
+        "India": 809986,
+        "US": 663106,
+        "France": 259452
+      },
+      "test_S2": {
+        "India": 2312565,
+        "US": 1871330,
+        "France": 703378
+      },
+      "test_S3": {
+        "India": 2405000,
+        "US": 1945701,
+        "France": 731615
+      }
+    }
+  },
+  "total_elapsed_sec": 531.5
+}

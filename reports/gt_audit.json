@@ -1,0 +1,50 @@
+{
+  "gt_rows": 2206821,
+  "train_source1_rows": 2206821,
+  "H3_gt_covers_all_s1": true,
+  "gt_duplicate_s1_rows": 0,
+  "singleton_count": 123247,
+  "singleton_rate": 0.05584820880352326,
+  "match_count_distribution": {
+    "0": 123247,
+    "1": 119157,
+    "2": 375212,
+    "3": 530841,
+    "4": 484115,
+    "5": 321957,
+    "6": 164868,
+    "7": 63968,
+    "8": 18680,
+    "9": 4205,
+    "10": 534,
+    "11": 37
+  },
+  "mean_matches_per_entity": 3.4612526344456573,
+  "mean_matches_given_nonsingleton": 3.66599170463828,
+  "max_matches": 11,
+  "total_gt_pairs": 7638365,
+  "pairs_to_s2": 3693619,
+  "pairs_to_s3": 3944746,
+  "distinct_matched_records": 7638365,
+  "H1_records_claimed_by_multiple_s1": 0,
+  "H1_holds_exclusive": true,
+  "H1_shared_examples": [],
+  "n_s2_per_row_distribution": {
+    "0": 164498,
+    "1": 789108,
+    "2": 652779,
+    "3": 333957,
+    "4": 119078,
+    "5": 24154
+  },
+  "n_s3_per_row_distribution": {
+    "0": 143029,
+    "1": 716417,
+    "2": 668375,
+    "3": 372443,
+    "4": 145116,
+    "5": 35378,
+    "6": 2816
+  },
+  "elapsed_sec": 39.9
+}
