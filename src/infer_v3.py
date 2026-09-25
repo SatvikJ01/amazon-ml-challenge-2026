@@ -89,6 +89,25 @@ def pass1(country: str, run: Path, stage1: str, stage2: str) -> None:
         gc.collect()
 
 
+def rescore(country: str, run: Path, stage2x: str) -> None:
+    """Recompute p2 in the pass-1 files with the GPU XGBoost stage-2 model, so test p2
+    comes from the same model family as the cross-fitted training p2."""
+    import xgboost as xgb
+    booster = xgb.Booster(); booster.load_model(str(EXPERIMENTS / stage2x / "model.json"))
+    booster.set_param({"device": "cuda"})
+    feats = json.loads((EXPERIMENTS / stage2x / "features.json").read_text())
+    parts = sorted((run / "pass1_feats").glob(f"{country}_p*.parquet"))
+    for fp in parts:
+        df = pd.read_parquet(fp)
+        df["p2"] = booster.predict(xgb.DMatrix(df[feats].to_numpy(np.float32))).astype(np.float32)
+        df.to_parquet(fp.with_suffix(".partial"), index=False, compression="zstd")
+        fp.with_suffix(".partial").replace(fp)
+        i = int(fp.stem.split("_p")[1])
+        df[["s1", "cand"]].assign(prob=df["p2"]).to_parquet(
+            run / "pass1_anchors" / f"{country}_p{i}of{len(parts)}.parquet", index=False)
+        print(f"  rescore {fp.name}: {len(df):,} pairs, mean p2 {df['p2'].mean():.4f}", flush=True)
+
+
 def anchors(country: str, run: Path) -> None:
     anchor_pass.CFG["test_scores"] = str((run / "pass1_anchors").relative_to(EXPERIMENTS))
     h = anchor_pass.retrieve(SPLIT, country)
@@ -172,7 +191,8 @@ def write(run: Path, sub_id: str, note: str, from_pass1: bool = False) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("step", choices=["pass1", "anchors", "pass2", "write"])
+    ap.add_argument("step", choices=["pass1", "rescore", "anchors", "pass2", "write"])
+    ap.add_argument("--stage2x", default="E030_stage2x", help="rescore: GPU XGBoost stage-2 model")
     ap.add_argument("--country", default=None)
     ap.add_argument("--run", default="E030_test")
     ap.add_argument("--stage1", default="E030_stage1")
@@ -190,6 +210,8 @@ def main() -> None:
     run.mkdir(parents=True, exist_ok=True)
     if args.step == "pass1":
         pass1(args.country, run, args.stage1, args.stage2)
+    elif args.step == "rescore":
+        rescore(args.country, run, args.stage2x)
     elif args.step == "anchors":
         anchors(args.country, run)
     elif args.step == "pass2":

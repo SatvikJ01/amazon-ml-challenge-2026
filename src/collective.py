@@ -119,23 +119,57 @@ def _texts(split: str, country: str, codes: np.ndarray) -> pd.DataFrame:
     return pd.concat(parts, ignore_index=True).set_index("code")
 
 
-def oof_stage2(tag: str, exp: str, out: Path, countries=("India", "US")) -> None:
-    """5-fold cross-fitted stage-2 probabilities for every sampled training pair."""
+def oof_stage2(tag: str, exp: str, out: Path, countries=("India", "US"), model: str = "lgb") -> None:
+    """5-fold cross-fitted stage-2 probabilities for every sampled training pair.
+
+    Column-wise loading into one float32 matrix (no frame copies).  ``model="xgb"``
+    trains XGBoost on the GPU (~9x faster than LightGBM on this machine; same F0.5
+    on this data, prediction correlation 0.999 -- E024).
+    """
+    import gc
+    import pyarrow.parquet as pq
     feats = json.loads((EXPERIMENTS / exp / "features.json").read_text())
-    df = pd.concat([pd.read_parquet(PROCESSED / f"feats_{tag}_{c}.parquet").assign(country=c)
-                    for c in countries], ignore_index=True)
-    X = df[feats].to_numpy(np.float32); y = df["label"].to_numpy()
-    s1 = df["s1"].to_numpy(); fold = entity_fold(s1, 5)
+    paths = [PROCESSED / f"feats_{tag}_{c}.parquet" for c in countries]
+    sizes = [pq.ParquetFile(p).metadata.num_rows for p in paths]
+    n = sum(sizes)
+    X = np.empty((n, len(feats)), np.float32)
+    y = np.empty(n, np.float32); s1 = np.empty(n, np.int64); cand = np.empty(n, np.int64)
+    country = np.empty(n, dtype=object)
+    off = 0
+    for p, sz, c in zip(paths, sizes, countries):
+        for j, col in enumerate(feats):
+            X[off:off + sz, j] = pq.read_table(p, columns=[col]).column(col).to_numpy()
+        y[off:off + sz] = pq.read_table(p, columns=["label"]).column("label").to_numpy()
+        s1[off:off + sz] = pq.read_table(p, columns=["s1"]).column("s1").to_numpy()
+        cand[off:off + sz] = pq.read_table(p, columns=["cand"]).column("cand").to_numpy()
+        country[off:off + sz] = c
+        off += sz
+    gc.collect()
+    fold = entity_fold(s1, 5)
     es = entity_fold(s1 * 7 + 3, 10) == 0
-    p2 = np.zeros(len(df), np.float32)
+    p2 = np.zeros(n, np.float32)
     for k in range(5):
-        tr = (fold != k) & ~es; va = (fold != k) & es
-        m = lgb.train(LGB_PARAMS, lgb.Dataset(X[tr], y[tr]), 3000, valid_sets=[lgb.Dataset(X[va], y[va])],
-                      callbacks=[lgb.early_stopping(100, verbose=False)])
-        p2[fold == k] = m.predict(X[fold == k], num_iteration=m.best_iteration)
-        print(f"  fold {k}: best_iter {m.best_iteration}", flush=True)
+        tr = np.flatnonzero((fold != k) & ~es); va = np.flatnonzero((fold != k) & es); te = np.flatnonzero(fold == k)
+        if model == "xgb":
+            import xgboost as xgb
+            params = dict(objective="binary:logistic", eval_metric="logloss", tree_method="hist", device="cuda",
+                          learning_rate=0.05, max_depth=9, min_child_weight=5, subsample=0.8,
+                          colsample_bytree=0.8, reg_lambda=1.0, max_bin=128, seed=0)
+            dtr = xgb.QuantileDMatrix(X[tr], y[tr], max_bin=128)
+            dva = xgb.QuantileDMatrix(X[va], y[va], ref=dtr, max_bin=128)
+            b = xgb.train(params, dtr, 3000, evals=[(dva, "es")], early_stopping_rounds=100, verbose_eval=False)
+            p2[te] = b.predict(xgb.DMatrix(X[te]), iteration_range=(0, b.best_iteration + 1))
+            best = b.best_iteration
+            del dtr, dva, b
+        else:
+            m = lgb.train(LGB_PARAMS, lgb.Dataset(X[tr], y[tr]), 3000, valid_sets=[lgb.Dataset(X[va], y[va])],
+                          callbacks=[lgb.early_stopping(100, verbose=False)])
+            p2[te] = m.predict(X[te], num_iteration=m.best_iteration)
+            best = m.best_iteration
+        print(f"  fold {k}: best_iter {best}", flush=True)
+        gc.collect()
     out.mkdir(parents=True, exist_ok=True)
-    df[["s1", "cand", "country"]].assign(p2=p2).to_parquet(out / "oof_p2.parquet", index=False)
+    pd.DataFrame({"s1": s1, "cand": cand, "country": country, "p2": p2}).to_parquet(out / "oof_p2.parquet", index=False)
 
 
 def main() -> None:
@@ -143,6 +177,7 @@ def main() -> None:
     ap.add_argument("step", choices=["oof", "build", "train"])
     ap.add_argument("--country", default=None, help="build: one country per process")
     ap.add_argument("--split", default="train", help="build: data version for candidate texts")
+    ap.add_argument("--model", choices=["lgb", "xgb"], default="lgb", help="oof: model family")
     ap.add_argument("--tag", default="trn3c")
     ap.add_argument("--exp", default="E020_reverse_stage2")
     ap.add_argument("--out", default="E021_collective")
@@ -150,7 +185,7 @@ def main() -> None:
     out = EXPERIMENTS / args.out
     t0 = time.time()
     if args.step == "oof":
-        oof_stage2(args.tag, args.exp, out)
+        oof_stage2(args.tag, args.exp, out, model=args.model)
         return
 
     if args.step == "build":
