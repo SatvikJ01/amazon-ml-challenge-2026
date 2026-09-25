@@ -1,0 +1,27 @@
+{
+  "country": "India",
+  "source": 2,
+  "k": 3,
+  "n_true": 1480545,
+  "forward_recall": 0.9464082483139654,
+  "forward_pairs": 26495582,
+  "by_k": {
+    "1": {
+      "union_recall": 0.9536137030620481,
+      "extra_pairs": 119804,
+      "extra_per_entity": 0.13564948799123178
+    },
+    "2": {
+      "union_recall": 0.9564342860230524,
+      "extra_pairs": 733666,
+      "extra_per_entity": 0.8307019570012274
+    },
+    "3": {
+      "union_recall": 0.9582599650804264,
+      "extra_pairs": 1573366,
+      "extra_per_entity": 1.7814621575474305
+    }
+  },
+  "residual_misses_k3": 61798,
+  "elapsed_sec": 467.1
+}

@@ -17,3 +17,8 @@
 - `src/decision.py`: exact expected-F0.5 prefix selection (numba), brute-force tested.
 - `src/train.py`: LightGBM with entity-grouped folds, inner early stopping, full-truth scoring.
 - `src/submission.py`: strict writer + official validator + versioned archive.
+- `src/stage1.py`, `src/make_stage2.py`: cross-fitted cascade; `src/inference.py`: per-part checkpoints, per-country processes.
+- `src/submission.py`: streamed writer + streamed format verifier; official validator on matching file.
+- `src/candidates.py`: reverse channel (`--reverse`, target -> top-k S1).
+- Experiments: `src/exp_cascade.py`, `src/exp_reverse_blocking.py`, `src/exp_char_channel.py`, `src/evaluate_full.py`.
+- Reports: `reports/current_state_audit.md`, `reports/improvement_plan.md`.

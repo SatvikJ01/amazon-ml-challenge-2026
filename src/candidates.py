@@ -62,6 +62,61 @@ def read_cands(tag: str, country: str, columns: list[str] | None = None) -> pd.D
                      ignore_index=True)
 
 
+def rev_path(tag: str, country: str, source: int) -> Path:
+    return PROCESSED / f"cands_{tag}_{country}_s{source}_rev.parquet"
+
+
+def run_reverse(split: str, country: str, source: int, cfg: BlockingConfig, out_path: Path,
+                query_batch: int = 250_000) -> tuple[int, int]:
+    """Reverse channel: every target record of (country, source) retrieves its
+    top-k S1 entities.  Every target has at most one owner, so for generic names
+    the target side is where a match is findable when the S1 entity has more than
+    30 lookalike targets (E017b: India S2 recall .9464 -> .9583 at k = 3).
+
+    Output columns: s1, cand, src, rev_score, rev_rank.
+    """
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    s1 = pd.read_parquet(PROCESSED / f"{split}_s1_{country}.parquet", columns=["code", "name_norm", "addr_norm"])
+    s1codes = s1["code"].to_numpy()
+    index = RareTermIndex(s1["name_norm"].to_numpy(), s1["addr_norm"].to_numpy(), cfg)
+    del s1
+    gc.collect()
+    t = pd.read_parquet(PROCESSED / f"{split}_s{source}_{country}.parquet", columns=["code", "name_norm", "addr_norm"])
+    tcodes = t["code"].to_numpy()
+    tn, ta = t["name_norm"].to_numpy(), t["addr_norm"].to_numpy()
+    del t
+    writer, n_pairs = None, 0
+    tmp = out_path.with_suffix(".partial")
+    try:
+        for b0 in range(0, tcodes.size, query_batch):
+            b1 = min(b0 + query_batch, tcodes.size)
+            idx, sc = search_topk(index, build_blobs(tn[b0:b1], ta[b0:b1], cfg),
+                                  label=f"rev {split}-{country}-S{source} [{b0}:{b1}]")
+            valid = idx >= 0
+            rows = np.broadcast_to(np.arange(b0, b1)[:, None], idx.shape)
+            part = pd.DataFrame({
+                "s1": s1codes[idx[valid]],
+                "cand": tcodes[rows[valid]],
+                "src": np.full(int(valid.sum()), source, dtype=np.int8),
+                "rev_score": sc[valid],
+                "rev_rank": np.broadcast_to(np.arange(idx.shape[1], dtype=np.int16), idx.shape)[valid],
+            })
+            table = pa.Table.from_pandas(part, preserve_index=False)
+            if writer is None:
+                writer = pq.ParquetWriter(tmp, table.schema, compression="zstd")
+            writer.write_table(table)
+            n_pairs += len(part)
+            del idx, sc, part, table
+            gc.collect()
+    finally:
+        if writer is not None:
+            writer.close()
+    tmp.replace(out_path)
+    return n_pairs, int(tcodes.size)
+
+
 def run_source(split: str, country: str, source: int, cfg: BlockingConfig,
                keep: np.ndarray | None, out_path: Path, query_batch: int = 200_000) -> tuple[int, int]:
     """Block one (country, source) and stream the pairs to ``out_path``.
@@ -133,6 +188,7 @@ def main() -> None:
     ap.add_argument("--countries", nargs="*", default=None)
     ap.add_argument("--sources", nargs="*", type=int, default=[2, 3])
     ap.add_argument("--skip-existing", action="store_true")
+    ap.add_argument("--reverse", action="store_true", help="run the reverse channel (target -> top-k S1)")
     args = ap.parse_args()
 
     cfg = BlockingConfig(topk=args.topk, max_df_abs=args.max_df)
@@ -142,12 +198,15 @@ def main() -> None:
 
     for country in args.countries or countries_for(args.split):
         for source in args.sources:
-            path = cand_path(args.tag, country, source)
+            path = rev_path(args.tag, country, source) if args.reverse else cand_path(args.tag, country, source)
             if args.skip_existing and path.exists():
                 print(f"== {path.name} exists, skipping", flush=True)
                 continue
             t0 = time.time()
-            n_pairs, n_q = run_source(args.split, country, source, cfg, keep, path)
+            if args.reverse:
+                n_pairs, n_q = run_reverse(args.split, country, source, cfg, path)
+            else:
+                n_pairs, n_q = run_source(args.split, country, source, cfg, keep, path)
             print(f"== {country} S{source}: {n_pairs:,} pairs for {n_q:,} entities "
                   f"({n_pairs / max(n_q, 1):.1f}/entity) in {time.time() - t0:.0f}s -> {path.name}", flush=True)
             gc.collect()

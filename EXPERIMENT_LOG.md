@@ -15,6 +15,12 @@ Blocking experiments report pair recall on 5k India S1 queries against the full 
 | E011 | 09-25 08:14 | Do canonical-digit + name-ambiguity features fix the E010 miss patterns? | E010 + 7 feats (63), same sample/holdout | **F0.5 0.9614** (+0.0036 paired); US .9661 / India .9545; all n_true buckets up | **Champion** |
 | E012 | 09-25 10:50 | Can a cheap stage-1 model prune pairs before string features? | 10 blocking/competition feats, LGB | p1≥1e-3 keeps 25.1 % pairs, 99.89 % positives, ΔF0.5 −0.00004 | Yes |
 | E013 | 09-25 11:00 | Does a stage-2 model on survivors match E011? | cross-fitted stage 1 → survivors → LGB 63 feats | **F0.5 0.96142** (E011 .96139); 15 cands/entity vs 60; ceiling .9806 | **Champion (cascade)** |
+| E014 | 09-25 20:20 | How does the model transfer to an unseen country (France proxy)? Does exclusivity help at full density? | both stages trained on US only, all 883k India entities scored | **0.884** (P .954, R .806, singletons .749); exclusivity +0.0005 | informs decisions |
+| E016 | 09-25 21:00 | Do density-dependent features cause the transfer loss? | LOCO ablations of count / absolute-retrieval / script features, both directions | no group helps (best +0.0018, within noise); India→US .941 | Rejected |
+| E017 | 09-25 21:05 | File-order leakage? | Spearman of row positions S1 vs matches | +0.004 / +0.001: none | — |
+| E017b | 09-25 21:15 | Does reverse retrieval recover blocking misses? | India S2, every S2 record → top-k S1 | recall .9464 → .9536 (k1) / .9583 (k3) / .9608 (k5) | **Yes (k=3)** |
+| E018 | 09-25 21:20 | Char n-gram channel for near-miss spellings? | skeleton 3-grams + name 4-grams, 20k queries | +0.0033 recall at +20 cands/entity | Rejected |
+| E019 | 09-25 21:25 | Are residual misses reachable via sibling records? | residual misses vs retrieved true siblings | 93 % have a retrieved sibling; 51 % sim ≥ 80; 33 % ≥15 pts closer to sibling than to S1 | **Pursue (collective ER)** |
 ## Details
 
 ### E001 (failed)

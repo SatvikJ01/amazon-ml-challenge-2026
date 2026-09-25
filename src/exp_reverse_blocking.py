@@ -91,6 +91,12 @@ def main() -> None:
                           "extra_per_entity": extra / s1codes.size}
         print(f"  reverse top{k}: recall {fset_hit.mean():.4f} -> {union_hit.mean():.4f}  "
               f"(+{extra:,} pairs, {extra / s1codes.size:.1f}/entity)", flush=True)
+    # Residual misses after forward ∪ reverse top-3, for categorisation.
+    rk3 = pair_keys(rev_s1[rev_rank < 3], rev_c[rev_rank < 3])
+    miss = ~(fset_hit | np.isin(tkeys, rk3))
+    ms1, mc = ps1[keep][miss], pm[keep][miss]
+    pd.DataFrame({"s1": ms1, "cand": mc}).to_parquet(REPORTS / f"residual_misses_{args.country}_S{args.source}.parquet")
+    res["residual_misses_k3"] = int(miss.sum())
     res["elapsed_sec"] = round(time.time() - t0, 1)
     (REPORTS / f"exp_reverse_{args.country}_S{args.source}.json").write_text(json.dumps(res, indent=2))
 
