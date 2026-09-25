@@ -136,13 +136,17 @@ def pass2(country: str, run: Path, stage3: str) -> None:
         gc.collect()
 
 
-def write(run: Path, sub_id: str, note: str) -> None:
+def write(run: Path, sub_id: str, note: str, from_pass1: bool = False) -> None:
     from .decision import select_sets
     from .inference import enforce_exclusivity
     from .submission import (CAND_HEADER, MATCH_HEADER, OUTPUT, archive, run_official_validator,
                              test_s1_ids, verify_file, write_submission)
     t0 = time.time()
-    sc = pd.concat([pd.read_parquet(p) for p in sorted((run / "scores").glob("*.parquet"))], ignore_index=True)
+    if from_pass1:   # fallback: stage-2 probabilities from pass 1 (no anchor pass)
+        sc = pd.concat([pd.read_parquet(p).rename(columns={"prob": "prob"})
+                        for p in sorted((run / "pass1_anchors").glob("*.parquet"))], ignore_index=True)
+    else:
+        sc = pd.concat([pd.read_parquet(p) for p in sorted((run / "scores").glob("*.parquet"))], ignore_index=True)
     s1, cand, prob = sc["s1"].to_numpy(), sc["cand"].to_numpy(), sc["prob"].to_numpy()
     live = prob >= 0.01
     a, b, p = s1[live], cand[live], prob[live]
@@ -159,7 +163,8 @@ def write(run: Path, sub_id: str, note: str) -> None:
     print(text)
     if code != 0:
         raise SystemExit("official validator FAILED -- not archiving")
-    meta = {"pipeline": "v3", "run": str(run.relative_to(ROOT)), "decision": "expF + exclusivity", "note": note,
+    meta = {"pipeline": "v3" + (" (stage 2 only)" if from_pass1 else " (stage 3)"), "run": str(run.relative_to(ROOT)),
+            "decision": "expF + exclusivity", "note": note,
             "stats": stats, "validator": "PASS", "elapsed_sec": round(time.time() - t0, 1)}
     print(json.dumps(stats, indent=2))
     print(f"archived -> {archive(sub_id, meta)}")
@@ -176,6 +181,7 @@ def main() -> None:
     ap.add_argument("--sub-id", default=None)
     ap.add_argument("--note", default="")
     ap.add_argument("--split", default="test", help="data version (test or testT)")
+    ap.add_argument("--from-pass1", action="store_true", help="write from stage-2 scores (fallback)")
     ap.add_argument("--tag", default="testall", help="candidate-file tag")
     args = ap.parse_args()
     global SPLIT, TAG
@@ -189,7 +195,7 @@ def main() -> None:
     elif args.step == "pass2":
         pass2(args.country, run, args.stage3)
     else:
-        write(run, args.sub_id, args.note)
+        write(run, args.sub_id, args.note, args.from_pass1)
 
 
 if __name__ == "__main__":
