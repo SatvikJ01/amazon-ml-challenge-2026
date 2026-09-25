@@ -67,8 +67,13 @@ def main() -> None:
     ap.add_argument("--out", default="E013_stage1")
     ap.add_argument("--countries", nargs="*", default=["India", "US"])
     ap.add_argument("--reverse", action="store_true")
+    ap.add_argument("--v3", action="store_true", help="multi-channel (forward/reverse/key) feature set")
     args = ap.parse_args()
-    feat_list = STAGE1_FEATURES_REV if args.reverse else STAGE1_FEATURES
+    if args.v3:
+        from .v3 import STAGE1_V3
+        feat_list = STAGE1_V3
+    else:
+        feat_list = STAGE1_FEATURES_REV if args.reverse else STAGE1_FEATURES
     out = EXPERIMENTS / args.out
     out.mkdir(parents=True, exist_ok=True)
 

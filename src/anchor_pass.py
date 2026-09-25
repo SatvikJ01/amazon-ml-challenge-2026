@@ -47,6 +47,8 @@ ROOT = Path(__file__).resolve().parents[1]
 PROCESSED = ROOT / "data" / "processed"
 EXPERIMENTS = ROOT / "experiments"
 OUT = EXPERIMENTS / "E023_anchor"
+CFG = {"oof_dir": "E021p_collective_on_E013", "test_scores": "E013_cascade_stage2/test_scores_d30_casc",
+       "old_tag": "trn2c", "out_tag": "trn2c_anc", "entities": "entities_trn2c.npy"}
 K = 3
 SIB_COLS = ["p2", "p2_rank", "n_anchors", "anchor_p_mean", "sib_name", "sib_addr", "sib_all",
             "sib_num_eq", "is_anchor"]
@@ -68,10 +70,10 @@ def _texts_full(split: str, country: str, codes: np.ndarray) -> pd.DataFrame:
 def load_anchors(split: str, country: str) -> pd.DataFrame:
     """(s1, cand, p2) of predicted anchors."""
     if split == "train":
-        o = pd.read_parquet(EXPERIMENTS / "E021p_collective_on_E013" / "oof_p2.parquet")
+        o = pd.read_parquet(EXPERIMENTS / CFG["oof_dir"] / "oof_p2.parquet")
         o = o[o["country"] == country][["s1", "cand", "p2"]]
     else:
-        d = EXPERIMENTS / "E013_cascade_stage2" / "test_scores_d30_casc"
+        d = EXPERIMENTS / CFG["test_scores"]
         o = pd.concat([pd.read_parquet(p) for p in sorted(d.glob(f"{country}_p*.parquet"))], ignore_index=True)
         o = o.rename(columns={"prob": "p2"})[["s1", "cand", "p2"]]
     return o[o["p2"] >= ANCHOR_P].reset_index(drop=True)
@@ -179,8 +181,8 @@ def _new_pair_features(country: str, new: pd.DataFrame) -> pd.DataFrame:
 def build(country: str, no_new: bool) -> None:
     import pyarrow.parquet as pq
     t0 = time.time()
-    tag_out = "trn2c_ancA" if no_new else "trn2c_anc"
-    old_path = PROCESSED / f"feats_trn2c_sib_{country}.parquet"
+    tag_out = CFG["out_tag"] + ("A" if no_new else "")
+    old_path = PROCESSED / f"feats_{CFG['old_tag']}_sib_{country}.parquet"
     okeys = pq.read_table(old_path, columns=["s1", "cand"]).to_pandas()
     hits = pd.read_parquet(OUT / f"hits_train_{country}.parquet")
     hits = hits[np.isin(hits["s1"].to_numpy(), okeys["s1"].unique())].reset_index(drop=True)
@@ -213,7 +215,7 @@ def build(country: str, no_new: bool) -> None:
         if df[c].dtype == np.float64:
             df[c] = df[c].astype(np.float32)
     df.to_parquet(PROCESSED / f"feats_{tag_out}_{country}.parquet", index=False, compression="zstd")
-    shutil.copy(PROCESSED / "entities_trn2c.npy", PROCESSED / f"entities_{tag_out}.npy")
+    shutil.copy(PROCESSED / CFG["entities"], PROCESSED / f"entities_{tag_out}.npy")
     print(f"{country}: {len(df):,} pairs -> feats_{tag_out}_{country} ({time.time() - t0:.0f}s)", flush=True)
 
 
@@ -223,7 +225,19 @@ def main() -> None:
     ap.add_argument("--split", default="train")
     ap.add_argument("--country", required=True)
     ap.add_argument("--no-new", action="store_true")
+    ap.add_argument("--oof-dir", default=None)
+    ap.add_argument("--test-scores", default=None)
+    ap.add_argument("--old-tag", default=None)
+    ap.add_argument("--out-tag", default=None)
+    ap.add_argument("--entities", default=None)
+    ap.add_argument("--hits-dir", default=None, help="where anchor hits are stored (default E023_anchor)")
     args = ap.parse_args()
+    global OUT
+    for k in ("oof_dir", "test_scores", "old_tag", "out_tag", "entities"):
+        if getattr(args, k) is not None:
+            CFG[k] = getattr(args, k)
+    if args.hits_dir:
+        OUT = EXPERIMENTS / args.hits_dir
     OUT.mkdir(parents=True, exist_ok=True)
     if args.step == "retrieve":
         t0 = time.time()
