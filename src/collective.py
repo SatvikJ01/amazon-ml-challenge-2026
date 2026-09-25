@@ -142,6 +142,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("step", choices=["oof", "build", "train"])
     ap.add_argument("--country", default=None, help="build: one country per process")
+    ap.add_argument("--split", default="train", help="build: data version for candidate texts")
     ap.add_argument("--tag", default="trn3c")
     ap.add_argument("--exp", default="E020_reverse_stage2")
     ap.add_argument("--out", default="E021_collective")
@@ -162,7 +163,7 @@ def main() -> None:
         f = pd.read_parquet(PROCESSED / f"feats_{args.tag}_{c}.parquet").merge(oof, on=["s1", "cand"])
         del oof
         cc = f["cand"].to_numpy()
-        tx = _texts("train", c, cc)
+        tx = _texts(args.split, c, cc)
         sf = sibling_features(f["s1"].to_numpy(), cc, f["p2"].to_numpy(),
                               tx.loc[cc, "name_norm"].to_numpy(), tx.loc[cc, "addr_norm"].to_numpy())
         del tx

@@ -162,24 +162,25 @@ def main() -> None:
     ap.add_argument("--country", required=True)
     ap.add_argument("--entities", default="data/processed/entities_v3.npy")
     ap.add_argument("--stage1", default="E030_stage1")
+    ap.add_argument("--prefix", default="v3", help="output tag prefix (feats_{prefix}s1 / feats_{prefix}c)")
     args = ap.parse_args()
     t0 = time.time()
     if args.step == "s1data":
         keep = np.load(args.entities)
         df = stage1_frame(args.split, args.tag, args.country, keep, with_labels=True)
-        df.to_parquet(PROCESSED / f"feats_v3s1_{args.country}.parquet", index=False, compression="zstd")
+        df.to_parquet(PROCESSED / f"feats_{args.prefix}s1_{args.country}.parquet", index=False, compression="zstd")
         print(f"{args.country}: {len(df):,} union pairs for {df['s1'].nunique():,} entities "
               f"({len(df) / df['s1'].nunique():.1f}/entity), pos_rate {df['label'].mean():.4f}, "
               f"label coverage {df['label'].sum():,} ({time.time() - t0:.0f}s)", flush=True)
         return
     oof = pd.read_parquet(EXPERIMENTS / args.stage1 / "oof_p1.parquet")
-    path = PROCESSED / f"feats_v3s1_{args.country}.parquet"
+    path = PROCESSED / f"feats_{args.prefix}s1_{args.country}.parquet"
     keys = pq.read_table(path, columns=["s1", "cand"]).to_pandas()
     p1 = keys.merge(oof, on=["s1", "cand"], how="left")["p1"].to_numpy()
     assert not np.isnan(p1).any()
     df = pq.read_table(path).filter(pa.array(p1 >= STAGE1_THRESHOLD)).to_pandas()
     del keys, p1
-    out = PROCESSED / f"feats_v3c_{args.country}.parquet"
+    out = PROCESSED / f"feats_{args.prefix}c_{args.country}.parquet"
     tmp = out.with_suffix(".partial")
     w = None
     n = 0
@@ -190,7 +191,7 @@ def main() -> None:
         n += len(c)
     w.close()
     tmp.replace(out)
-    shutil.copy(args.entities, PROCESSED / "entities_v3c.npy")
+    shutil.copy(args.entities, PROCESSED / f"entities_{args.prefix}c.npy")
     print(f"{args.country}: {n:,} survivor pairs with string features ({time.time() - t0:.0f}s)", flush=True)
 
 

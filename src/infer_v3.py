@@ -50,8 +50,11 @@ def _booster(exp: str) -> tuple[lgb.Booster, list[str]]:
             json.loads((EXPERIMENTS / exp / "features.json").read_text()))
 
 
+SPLIT, TAG = "test", "testall"
+
+
 def parts_of(country: str, part_entities: int = 200_000) -> list[np.ndarray]:
-    codes = pd.read_parquet(PROCESSED / f"test_s1_{country}.parquet", columns=["code"])["code"].to_numpy()
+    codes = pd.read_parquet(PROCESSED / f"{SPLIT}_s1_{country}.parquet", columns=["code"])["code"].to_numpy()
     return np.array_split(codes, max(1, int(np.ceil(codes.size / part_entities))))
 
 
@@ -66,13 +69,13 @@ def pass1(country: str, run: Path, stage1: str, stage2: str) -> None:
         if fp.exists():
             continue
         t0 = time.time()
-        df = stage1_frame("test", "testall", country, part, with_labels=False)
+        df = stage1_frame(SPLIT, TAG, country, part, with_labels=False)
         p1 = s1m.predict(df[STAGE1_V3].to_numpy(np.float32))
         df = df[p1 >= STAGE1_THRESHOLD].reset_index(drop=True)
         del p1
         gc.collect()
         chunks = []
-        for c in string_features("test", country, df):
+        for c in string_features(SPLIT, country, df):
             c["p2"] = s2m.predict(c[s2f].to_numpy(np.float32)).astype(np.float32)
             chunks.append(c)
         out = pd.concat(chunks, ignore_index=True)
@@ -88,7 +91,7 @@ def pass1(country: str, run: Path, stage1: str, stage2: str) -> None:
 
 def anchors(country: str, run: Path) -> None:
     anchor_pass.CFG["test_scores"] = str((run / "pass1_anchors").relative_to(EXPERIMENTS))
-    h = anchor_pass.retrieve("test", country)
+    h = anchor_pass.retrieve(SPLIT, country)
     h.to_parquet(run / f"hits_test_{country}.parquet", index=False)
     print(f"  anchors {country}: {len(h):,} anchor-retrieved pairs", flush=True)
 
@@ -107,7 +110,7 @@ def pass2(country: str, run: Path, stage3: str) -> None:
         m = hits.merge(old[["s1", "cand"]].assign(_old=1), on=["s1", "cand"], how="left")
         new = hits[m["_old"].isna().to_numpy()].reset_index(drop=True)
         del m
-        new = anchor_pass._new_pair_features(country, new, split="test", tag="testall", with_labels=False)
+        new = anchor_pass._new_pair_features(country, new, split=SPLIT, tag=TAG, with_labels=False)
         old = old.merge(hits, on=["s1", "cand"], how="left")
         old["anc_hits"] = old["anc_hits"].fillna(0).astype(np.float32)
         old["from_anchor_only"] = np.float32(0)
@@ -118,7 +121,7 @@ def pass2(country: str, run: Path, stage3: str) -> None:
         df = df.drop(columns=[c for c in df.columns if c.startswith(CONTEXT_PREFIXES)] + [c for c in SIB_COLS if c in df.columns])
         df = add_context_features(df)
         cc = df["cand"].to_numpy()
-        tx = _texts("test", country, cc)
+        tx = _texts(SPLIT, country, cc)
         sf = sibling_features(df["s1"].to_numpy(), cc, p2, tx.loc[cc, "name_norm"].to_numpy(), tx.loc[cc, "addr_norm"].to_numpy())
         del tx
         df = pd.concat([df.reset_index(drop=True), sf], axis=1)
@@ -172,7 +175,11 @@ def main() -> None:
     ap.add_argument("--stage3", default="E030_stage3")
     ap.add_argument("--sub-id", default=None)
     ap.add_argument("--note", default="")
+    ap.add_argument("--split", default="test", help="data version (test or testT)")
+    ap.add_argument("--tag", default="testall", help="candidate-file tag")
     args = ap.parse_args()
+    global SPLIT, TAG
+    SPLIT, TAG = args.split, args.tag
     run = EXPERIMENTS / args.run
     run.mkdir(parents=True, exist_ok=True)
     if args.step == "pass1":

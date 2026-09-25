@@ -48,7 +48,8 @@ PROCESSED = ROOT / "data" / "processed"
 EXPERIMENTS = ROOT / "experiments"
 OUT = EXPERIMENTS / "E023_anchor"
 CFG = {"oof_dir": "E021p_collective_on_E013", "test_scores": "E013_cascade_stage2/test_scores_d30_casc",
-       "old_tag": "trn2c", "out_tag": "trn2c_anc", "entities": "entities_trn2c.npy"}
+       "old_tag": "trn2c", "out_tag": "trn2c_anc", "entities": "entities_trn2c.npy",
+       "train_split": "train", "train_tag": "trnall"}
 K = 3
 SIB_COLS = ["p2", "p2_rank", "n_anchors", "anchor_p_mean", "sib_name", "sib_addr", "sib_all",
             "sib_num_eq", "is_anchor"]
@@ -69,7 +70,7 @@ def _texts_full(split: str, country: str, codes: np.ndarray) -> pd.DataFrame:
 
 def load_anchors(split: str, country: str) -> pd.DataFrame:
     """(s1, cand, p2) of predicted anchors."""
-    if split == "train":
+    if split.startswith("train"):
         o = pd.read_parquet(EXPERIMENTS / CFG["oof_dir"] / "oof_p2.parquet")
         o = o[o["country"] == country][["s1", "cand", "p2"]]
     else:
@@ -186,14 +187,14 @@ def build(country: str, no_new: bool) -> None:
     tag_out = CFG["out_tag"] + ("A" if no_new else "")
     old_path = PROCESSED / f"feats_{CFG['old_tag']}_sib_{country}.parquet"
     okeys = pq.read_table(old_path, columns=["s1", "cand"]).to_pandas()
-    hits = pd.read_parquet(OUT / f"hits_train_{country}.parquet")
+    hits = pd.read_parquet(OUT / f"hits_{CFG['train_split']}_{country}.parquet")
     hits = hits[np.isin(hits["s1"].to_numpy(), okeys["s1"].unique())].reset_index(drop=True)
     new = None
     if not no_new:
         m = hits.merge(okeys.assign(_old=1), on=["s1", "cand"], how="left")
         new = hits[m["_old"].isna().to_numpy()].reset_index(drop=True)
         del m
-        new = _new_pair_features(country, new)
+        new = _new_pair_features(country, new, split=CFG["train_split"], tag=CFG["train_tag"])
         print(f"  {country}: +{len(new):,} anchor-only pairs, pos_rate {new['label'].mean():.4f}", flush=True)
     del okeys
     gc.collect()
@@ -208,7 +209,7 @@ def build(country: str, no_new: bool) -> None:
     df = df.drop(columns=[c for c in df.columns if c.startswith(CONTEXT_PREFIXES)] + SIB_COLS)
     df = add_context_features(df)
     cc = df["cand"].to_numpy()
-    tx = _texts("train", country, cc)
+    tx = _texts(CFG["train_split"], country, cc)
     sf = sibling_features(df["s1"].to_numpy(), cc, p2,
                           tx.loc[cc, "name_norm"].to_numpy(), tx.loc[cc, "addr_norm"].to_numpy())
     del tx
@@ -233,9 +234,11 @@ def main() -> None:
     ap.add_argument("--out-tag", default=None)
     ap.add_argument("--entities", default=None)
     ap.add_argument("--hits-dir", default=None, help="where anchor hits are stored (default E023_anchor)")
+    ap.add_argument("--train-split", default=None)
+    ap.add_argument("--train-tag", default=None)
     args = ap.parse_args()
     global OUT
-    for k in ("oof_dir", "test_scores", "old_tag", "out_tag", "entities"):
+    for k in ("oof_dir", "test_scores", "old_tag", "out_tag", "entities", "train_split", "train_tag"):
         if getattr(args, k) is not None:
             CFG[k] = getattr(args, k)
     if args.hits_dir:
