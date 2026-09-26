@@ -105,3 +105,21 @@ empty address, shared name), plus US→India / India→US LOCO for unseen-countr
 label-free France diagnostics (anchor rate, predicted set sizes, empty rate).
 
 Rollback preserved: E013 (day1), day2_s1 (v3 stage 2), day2_s2 (E035) artefacts are never modified.
+
+## 6. Cloud runbook (prepared 2026-09-26 16:15)
+
+1. User: launch Ubuntu 24.04 on **r7i.8xlarge** (32 vCPU / 256 GB; fallback r7iz.4xlarge 16 / 128), 200 GB gp3,
+   SSH key; add `Host ml` (HostName, User ubuntu, IdentityFile) to `~/.ssh/config` on the laptop.
+2. Laptop: `scripts/aws/push.sh ml` — git-tracked code + official validator + raw dataset as a zstd stream
+   (~0.7 GB on the wire).
+3. Instance: `bash scripts/aws/bootstrap.sh` (≈5 min; `EMBED=1` adds CPU torch + sentence-transformers + faiss).
+4. Instance: `scripts/aws/run_v4.sh "--channels <pilot winners> --entities 1000000 --stage4"` — 114-job graph
+   (`src/v4_dag.py`, runner `src/dag.py`): per-job memory caps and pinned cores, resumable (`.done` markers),
+   one retry, dependants skipped on failure. Logs: `logs/dag/v4/_dag.log`, one log per job.
+5. Laptop: `scripts/aws/pull.sh ml` — reports, holdout predictions, DAG logs, finished submissions.
+
+Estimated critical path on r7i.8xlarge (1 M training entities, stage 4): setup 0.4 h → blocking 1–1.5 h
+(≈60 blocks, 6–8 at a time) → s1data/stage 1 0.7 h → s2data/stage 2 1 h → OOF (5 parallel folds) 0.5 h →
+anchors/extra 0.5 h → stage 3 0.7 h → stage 4 1.2 h; test pass 1 overlaps training; pass 2 + write 0.7 h.
+≈ 6–7 h to a stage-3 submission file, ≈ 7.5 h with stage 4 (laptop: not feasible at this scale).
+Dense e5 channel: GPU worker recommended (≈12 M records to encode; hours on CPU).

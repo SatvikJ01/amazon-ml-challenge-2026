@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import gc
+import os
 import shutil
 import time
 from pathlib import Path
@@ -45,6 +46,12 @@ STAGE1_V3 = ["blk_score", "blk_rank", "src", "comp_best_other", "comp_margin", "
              "blk_score_gap", "blk_score_rank", "blk_score_src_gap", "rev_score", "rev_rank", "in_fwd",
              "in_rev", "in_key", "key_hits", "key_minfreq", "ret_score", "ret_score_gap", "ret_score_rank"]
 STAGE1_THRESHOLD = 1e-3
+# v4: extra retrieval channels (src/channels.py, src/embed_channel.py) unioned when listed here.
+EXTRA_CHANNELS = [c for c in os.environ.get("V4_CHANNELS", "").split(",") if c]
+
+
+def stage1_features() -> list[str]:
+    return STAGE1_V3 + [f for ch in EXTRA_CHANNELS for f in (f"{ch}_score", f"{ch}_rank", f"in_{ch}")]
 
 
 def _read(path: Path, cols: list[str], keep: np.ndarray | None) -> pd.DataFrame:
@@ -74,8 +81,12 @@ def union_source(tag: str, country: str, source: int, keep: np.ndarray | None) -
     gc.collect()
     r = _read(rev_path(tag, country, source), ["s1", "cand", "rev_score", "rev_rank"], keep)
     k = _read(key_path(tag, country, source), ["s1", "cand", "key_hits", "key_minfreq"], keep)
+    from .channels import channel_path
+    ex = [(ch, _read(channel_path(tag, country, source, ch), ["s1", "cand", "score", "rank"], keep)
+           .rename(columns={"score": f"{ch}_score", "rank": f"{ch}_rank"})) for ch in EXTRA_CHANNELS]
 
-    allp = pd.concat([f[["s1", "cand"]], r[["s1", "cand"]], k[["s1", "cand"]]], ignore_index=True)
+    allp = pd.concat([f[["s1", "cand"]], r[["s1", "cand"]], k[["s1", "cand"]]] + [e[["s1", "cand"]] for _, e in ex],
+                     ignore_index=True)
     s1u = np.unique(allp["s1"].to_numpy())
     kk = lambda d: (np.searchsorted(s1u, d["s1"].to_numpy()).astype(np.int64) << 34) | (d["cand"].to_numpy() % OFFSET)
     uk, first = np.unique(kk(allp), return_index=True)
@@ -94,6 +105,8 @@ def union_source(tag: str, country: str, source: int, keep: np.ndarray | None) -
     u["in_fwd"] = attach(f, ["blk_score", "blk_rank"], [np.nan, 99])
     u["in_rev"] = attach(r, ["rev_score", "rev_rank"], [np.nan, 9])
     u["in_key"] = attach(k, ["key_hits", "key_minfreq"], [0.0, np.nan])
+    for ch, e in ex:
+        u[f"in_{ch}"] = attach(e, [f"{ch}_score", f"{ch}_rank"], [np.nan, 99])
     u["src"] = np.int8(source)
     u["ret_score"] = u["blk_score"].fillna(u["rev_score"]).astype(np.float32)
 

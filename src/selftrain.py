@@ -18,6 +18,7 @@ Usage: python -m src.selftrain --tag v3c --source US --target India
 from __future__ import annotations
 
 import argparse
+import os
 import json
 from pathlib import Path
 
@@ -36,7 +37,7 @@ EXPERIMENTS = ROOT / "experiments"
 HI, LO = 0.98, 0.02
 
 
-XGB = dict(objective="binary:logistic", eval_metric="logloss", tree_method="hist", device="cuda",
+XGB = dict(objective="binary:logistic", eval_metric="logloss", tree_method="hist", device=os.environ.get("XGB_DEVICE", "cuda"),
            learning_rate=0.05, max_depth=9, min_child_weight=5, subsample=0.8, colsample_bytree=0.8,
            reg_lambda=1.0, max_bin=128, seed=0)
 

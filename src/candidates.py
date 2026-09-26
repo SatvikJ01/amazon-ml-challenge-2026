@@ -179,7 +179,7 @@ def run_source(split: str, country: str, source: int, cfg: BlockingConfig,
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--split", required=True, choices=["train", "test"])
+    ap.add_argument("--split", required=True, help="data version: train, test, trainT, testT")
     ap.add_argument("--tag", required=True)
     ap.add_argument("--topk", type=int, default=40)
     ap.add_argument("--max-df", type=int, default=2_000)

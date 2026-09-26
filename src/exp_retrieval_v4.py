@@ -63,6 +63,7 @@ class ChannelIndex(RareTermIndex):
     def __init__(self, blob_fn, texts: np.ndarray, cfg: BlockingConfig, mode: str = "cosine", chunk: int = 500_000):
         import gc
         import scipy.sparse as sp
+        t0 = time.time()
         self.cfg, self.hasher, self.mode, self.blob_fn = cfg, _hasher(cfg), mode, blob_fn
         parts = [self.hasher.transform(blob_fn(texts[i:i + chunk])).tocsr() for i in range(0, len(texts), chunk)]
         X = sp.vstack(parts, format="csr") if len(parts) > 1 else parts[0]
@@ -85,6 +86,7 @@ class ChannelIndex(RareTermIndex):
         self.BT = X.T.tocsr()
         del X
         gc.collect()
+        self.build_sec = time.time() - t0
 
     def query_matrix(self, query_blobs):
         A = self.hasher.transform(query_blobs).tocsr()

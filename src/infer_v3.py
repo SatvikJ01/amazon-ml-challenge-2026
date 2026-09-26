@@ -23,6 +23,7 @@ Usage (one capped process per step/country):
 from __future__ import annotations
 
 import argparse
+import os
 import gc
 import json
 import time
@@ -56,7 +57,7 @@ class _XGB:
         self.feats = feats
         self.xgb, self.b = xgb, xgb.Booster()
         self.b.load_model(str(path))
-        self.b.set_param({"device": "cuda"})
+        self.b.set_param({"device": os.environ.get("XGB_DEVICE", "cuda")})
 
     def predict(self, X):
         return self.b.predict(self.xgb.DMatrix(X, feature_names=self.feats),
@@ -99,6 +100,8 @@ def pass1(country: str, run: Path, stage1: str, stage2: str, only_part: int | No
                 raise SystemExit(f"pass1 {country} part {i} failed with code {rc}")
         return
     s1m = lgb.Booster(model_file=str(EXPERIMENTS / stage1 / "model.txt"))
+    f1 = EXPERIMENTS / stage1 / "features.json"
+    s1f = json.loads(f1.read_text()) if f1.exists() else STAGE1_V3
     s2m, s2f = _booster(stage2)
     (run / "pass1_feats").mkdir(parents=True, exist_ok=True)
     (run / "pass1_anchors").mkdir(parents=True, exist_ok=True)
@@ -109,7 +112,7 @@ def pass1(country: str, run: Path, stage1: str, stage2: str, only_part: int | No
             continue
         t0 = time.time()
         df = stage1_frame(SPLIT, TAG, country, part, with_labels=False)
-        p1 = s1m.predict(df[STAGE1_V3].to_numpy(np.float32))
+        p1 = s1m.predict(df[s1f].to_numpy(np.float32))
         df = df[p1 >= STAGE1_THRESHOLD].reset_index(drop=True)
         del p1
         gc.collect()
@@ -136,7 +139,7 @@ def rescore(country: str, run: Path, stage2x: str) -> None:
     import pyarrow.parquet as pq
     import xgboost as xgb
     booster = xgb.Booster(); booster.load_model(str(EXPERIMENTS / stage2x / "model.json"))
-    booster.set_param({"device": "cuda"})
+    booster.set_param({"device": os.environ.get("XGB_DEVICE", "cuda")})
     feats = json.loads((EXPERIMENTS / stage2x / "features.json").read_text())
     parts = sorted((run / "pass1_feats").glob(f"{country}_p*.parquet"))
     for fp in parts:
@@ -166,7 +169,8 @@ def anchors(country: str, run: Path) -> None:
     print(f"  anchors {country}: {len(h):,} anchor-retrieved pairs", flush=True)
 
 
-def pass2(country: str, run: Path, stage3: str, scores: str = "scores", stage4: str | None = None) -> None:
+def pass2(country: str, run: Path, stage3: str, scores: str = "scores", stage4: str | None = None,
+          only_part: int | None = None) -> None:
     s3m, s3f = _booster(stage3)
     s4m, s4f = _booster(stage4) if stage4 else (None, None)
     need_extra = any(c in s3f for c in EXTRA_COLS)
@@ -180,7 +184,7 @@ def pass2(country: str, run: Path, stage3: str, scores: str = "scores", stage4: 
     hits_all = pd.read_parquet(run / f"hits_test_{country}.parquet")
     for i in range(len(parts_of(country))):
         sp = run / scores / f"{country}_p{i}.parquet"
-        if sp.exists():
+        if sp.exists() or (only_part is not None and i != only_part):
             continue
         t0 = time.time()
         fp = run / "pass1_feats" / f"{country}_p{i}.parquet"
@@ -294,7 +298,7 @@ def main() -> None:
     ap.add_argument("--note", default="")
     ap.add_argument("--split", default="test", help="data version (test or testT)")
     ap.add_argument("--from-pass1", action="store_true", help="write from stage-2 scores (fallback)")
-    ap.add_argument("--part", type=int, default=None, help="pass1: compute only this part (child process)")
+    ap.add_argument("--part", type=int, default=None, help="pass1/pass2: compute only this part")
     ap.add_argument("--tag", default="testall", help="candidate-file tag")
     ap.add_argument("--scores", default="scores", help="pass2/write: scores sub-directory of the run")
     args = ap.parse_args()
@@ -309,7 +313,7 @@ def main() -> None:
     elif args.step == "anchors":
         anchors(args.country, run)
     elif args.step == "pass2":
-        pass2(args.country, run, args.stage3, args.scores, args.stage4)
+        pass2(args.country, run, args.stage3, args.scores, args.stage4, args.part)
     else:
         write(run, args.sub_id, args.note, args.from_pass1, args.scores)
 

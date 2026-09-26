@@ -27,6 +27,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
 import json
 import time
 from pathlib import Path
@@ -119,7 +120,8 @@ def _texts(split: str, country: str, codes: np.ndarray) -> pd.DataFrame:
     return pd.concat(parts, ignore_index=True).set_index("code")
 
 
-def oof_stage2(tag: str, exp: str, out: Path, countries=("India", "US"), model: str = "lgb") -> None:
+def oof_stage2(tag: str, exp: str, out: Path, countries=("India", "US"), model: str = "lgb",
+               folds: list[int] | None = None) -> None:
     """5-fold cross-fitted stage-2 probabilities for every sampled training pair.
 
     Column-wise loading into one float32 matrix (no frame copies).  ``model="xgb"``
@@ -149,11 +151,11 @@ def oof_stage2(tag: str, exp: str, out: Path, countries=("India", "US"), model: 
     es = entity_fold(s1 * 7 + 3, 10) == 0
     p2 = np.zeros(n, np.float32)
     dall = None
-    for k in range(5):
+    for k in (folds if folds is not None else range(5)):
         tr = np.flatnonzero((fold != k) & ~es); va = np.flatnonzero((fold != k) & es); te = np.flatnonzero(fold == k)
         if model == "xgb":
             import xgboost as xgb
-            params = dict(objective="binary:logistic", eval_metric="logloss", tree_method="hist", device="cuda",
+            params = dict(objective="binary:logistic", eval_metric="logloss", tree_method="hist", device=os.environ.get("XGB_DEVICE", "cuda"),
                           learning_rate=0.05, max_depth=9, min_child_weight=5, subsample=0.8,
                           colsample_bytree=0.8, reg_lambda=1.0, max_bin=128, seed=0)
             # One quantised matrix over all rows; each fold's training set is selected by
@@ -190,12 +192,18 @@ def oof_stage2(tag: str, exp: str, out: Path, countries=("India", "US"), model: 
         print(f"  fold {k}: best_iter {best}", flush=True)
         gc.collect()
     out.mkdir(parents=True, exist_ok=True)
+    if folds is not None:      # one process per fold (parallel on a large machine); merged by `oof-merge`
+        m = np.isin(fold, folds)
+        pd.DataFrame({"s1": s1[m], "cand": cand[m], "country": country[m], "p2": p2[m]}).to_parquet(
+            out / f"oof_p2_fold{'_'.join(map(str, folds))}.parquet", index=False)
+        return
     pd.DataFrame({"s1": s1, "cand": cand, "country": country, "p2": p2}).to_parquet(out / "oof_p2.parquet", index=False)
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("step", choices=["oof", "build", "train"])
+    ap.add_argument("step", choices=["oof", "oof-merge", "build", "train"])
+    ap.add_argument("--fold", type=int, default=None, help="oof: run only this fold")
     ap.add_argument("--country", default=None, help="build: one country per process")
     ap.add_argument("--split", default="train", help="build: data version for candidate texts")
     ap.add_argument("--model", choices=["lgb", "xgb"], default="lgb", help="oof: model family")
@@ -206,7 +214,13 @@ def main() -> None:
     out = EXPERIMENTS / args.out
     t0 = time.time()
     if args.step == "oof":
-        oof_stage2(args.tag, args.exp, out, model=args.model)
+        oof_stage2(args.tag, args.exp, out, model=args.model, folds=None if args.fold is None else [args.fold])
+        return
+    if args.step == "oof-merge":
+        parts = sorted(out.glob("oof_p2_fold*.parquet"))
+        assert len(parts) == 5, parts
+        pd.concat([pd.read_parquet(x) for x in parts], ignore_index=True).to_parquet(out / "oof_p2.parquet", index=False)
+        print(f"merged {len(parts)} folds -> {out / 'oof_p2.parquet'}")
         return
 
     if args.step == "build":

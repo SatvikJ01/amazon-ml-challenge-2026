@@ -22,6 +22,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
 import json
 import time
 from pathlib import Path
@@ -162,7 +163,7 @@ def main() -> None:
 
     if args.model == "xgb":
         import xgboost as xgb
-        params = dict(objective="binary:logistic", eval_metric="logloss", tree_method="hist", device="cuda",
+        params = dict(objective="binary:logistic", eval_metric="logloss", tree_method="hist", device=os.environ.get("XGB_DEVICE", "cuda"),
                       learning_rate=0.05, max_depth=9, min_child_weight=5, subsample=0.8,
                       colsample_bytree=0.8, reg_lambda=1.0, max_bin=128, seed=0)
         dtr = xgb.QuantileDMatrix(X_tr, y_tr, max_bin=128, feature_names=feats)

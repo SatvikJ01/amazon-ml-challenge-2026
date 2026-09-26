@@ -85,8 +85,8 @@ def main() -> None:
     ap.add_argument("--neg-frac", type=float, default=1.0, help="negative sampling rate for training folds")
     args = ap.parse_args()
     if args.v3:
-        from .v3 import STAGE1_V3
-        feat_list = STAGE1_V3
+        from .v3 import stage1_features
+        feat_list = stage1_features()
     else:
         feat_list = STAGE1_FEATURES_REV if args.reverse else STAGE1_FEATURES
     out = EXPERIMENTS / args.out
@@ -132,6 +132,7 @@ def main() -> None:
            "pos_recall": float(keep[y == 1].mean()), "features": feat_list}
     pd.DataFrame({"s1": s1, "cand": cand, "p1": oof}).to_parquet(out / "oof_p1.parquet", index=False)
     (out / "report.json").write_text(json.dumps(rep, indent=2))
+    (out / "features.json").write_text(json.dumps(feat_list))
     print(json.dumps(rep, indent=2))
 
 
