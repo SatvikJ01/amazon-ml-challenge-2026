@@ -58,7 +58,24 @@ def parts_of(country: str, part_entities: int = 200_000) -> list[np.ndarray]:
     return np.array_split(codes, max(1, int(np.ceil(codes.size / part_entities))))
 
 
-def pass1(country: str, run: Path, stage1: str, stage2: str) -> None:
+def pass1(country: str, run: Path, stage1: str, stage2: str, only_part: int | None = None) -> None:
+    """Without ``only_part``: run every missing part in its *own child process*
+    (memory crept up across parts inside one long process and got OOM-killed on
+    the 2nd-3rd part).  With ``only_part``: compute exactly that part."""
+    import os
+    import subprocess
+    import sys
+    if only_part is None:
+        n = len(parts_of(country))
+        for i in range(n):
+            if (run / "pass1_feats" / f"{country}_p{i}.parquet").exists():
+                continue
+            cmd = [sys.executable, "-m", "src.infer_v3", "pass1", "--country", country, "--part", str(i),
+                   "--run", run.name, "--stage1", stage1, "--stage2", stage2, "--split", SPLIT, "--tag", TAG]
+            rc = subprocess.run(cmd, cwd=ROOT).returncode
+            if rc != 0:
+                raise SystemExit(f"pass1 {country} part {i} failed with code {rc}")
+        return
     s1m = lgb.Booster(model_file=str(EXPERIMENTS / stage1 / "model.txt"))
     s2m, s2f = _booster(stage2)
     (run / "pass1_feats").mkdir(parents=True, exist_ok=True)
@@ -66,7 +83,7 @@ def pass1(country: str, run: Path, stage1: str, stage2: str) -> None:
     parts = parts_of(country)
     for i, part in enumerate(parts):
         fp = run / "pass1_feats" / f"{country}_p{i}.parquet"
-        if fp.exists():
+        if fp.exists() or i != only_part:
             continue
         t0 = time.time()
         df = stage1_frame(SPLIT, TAG, country, part, with_labels=False)
@@ -202,6 +219,7 @@ def main() -> None:
     ap.add_argument("--note", default="")
     ap.add_argument("--split", default="test", help="data version (test or testT)")
     ap.add_argument("--from-pass1", action="store_true", help="write from stage-2 scores (fallback)")
+    ap.add_argument("--part", type=int, default=None, help="pass1: compute only this part (child process)")
     ap.add_argument("--tag", default="testall", help="candidate-file tag")
     args = ap.parse_args()
     global SPLIT, TAG
@@ -209,7 +227,7 @@ def main() -> None:
     run = EXPERIMENTS / args.run
     run.mkdir(parents=True, exist_ok=True)
     if args.step == "pass1":
-        pass1(args.country, run, args.stage1, args.stage2)
+        pass1(args.country, run, args.stage1, args.stage2, args.part)
     elif args.step == "rescore":
         rescore(args.country, run, args.stage2x)
     elif args.step == "anchors":

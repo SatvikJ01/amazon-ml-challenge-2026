@@ -4,7 +4,7 @@
 # hard-linked unchanged.  Starts after the E030 test pass 1 frees the machine.
 set -u
 cd "$(dirname "$0")/.."
-until grep -q PASS1_DONE logs/test_v3b.log 2>/dev/null; do sleep 30; done
+until grep -q ALL_DONE logs/test_v3c.log 2>/dev/null; do sleep 30; done
 CAP="systemd-run --user --scope -q -p MemoryMax=7G -p MemorySwapMax=0"
 PY=".venv/bin/python -u -m"
 step() { echo ">>> $*"; $CAP $PY "$@"; local rc=$?; echo "EXIT $rc $*" | cut -c1-120; return $rc; }

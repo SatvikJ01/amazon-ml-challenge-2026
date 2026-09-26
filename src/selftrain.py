@@ -36,10 +36,25 @@ EXPERIMENTS = ROOT / "experiments"
 HI, LO = 0.98, 0.02
 
 
+XGB = dict(objective="binary:logistic", eval_metric="logloss", tree_method="hist", device="cuda",
+           learning_rate=0.05, max_depth=9, min_child_weight=5, subsample=0.8, colsample_bytree=0.8,
+           reg_lambda=1.0, max_bin=128, seed=0)
+
+
+class _Fit:
+    """GPU XGBoost wrapper with the LightGBM-like interface used below."""
+    def __init__(self, b):
+        self.b, self.best_iteration = b, b.best_iteration
+    def predict(self, X, num_iteration=None):
+        import xgboost as xgb
+        return self.b.predict(xgb.DMatrix(X), iteration_range=(0, self.best_iteration + 1))
+
+
 def fit(X, y, w, es):
-    return lgb.train(LGB_PARAMS, lgb.Dataset(X[~es], y[~es], weight=w[~es]), 3000,
-                     valid_sets=[lgb.Dataset(X[es], y[es], weight=w[es])],
-                     callbacks=[lgb.early_stopping(100, verbose=False)])
+    import xgboost as xgb
+    dtr = xgb.QuantileDMatrix(X[~es], y[~es], weight=w[~es], max_bin=128)
+    dva = xgb.QuantileDMatrix(X[es], y[es], weight=w[es], ref=dtr, max_bin=128)
+    return _Fit(xgb.train(XGB, dtr, 3000, evals=[(dva, "es")], early_stopping_rounds=100, verbose_eval=False))
 
 
 def score(tgt, prob, ents, truth):
@@ -60,11 +75,22 @@ def main() -> None:
     args = ap.parse_args()
     out = EXPERIMENTS / f"E031_selftrain_{args.source}2{args.target}"
     out.mkdir(parents=True, exist_ok=True)
-    src = pd.read_parquet(PROCESSED / f"feats_{args.tag}_{args.source}.parquet")
-    tgt = pd.read_parquet(PROCESSED / f"feats_{args.tag}_{args.target}.parquet")
-    feats = [c for c in src.columns if c not in NON_FEATURES]
-    Xs, ys = src[feats].to_numpy(np.float32), src["label"].to_numpy().astype(np.float32)
-    Xt = tgt[feats].to_numpy(np.float32)
+    import pyarrow.parquet as pq
+
+    def load(country):
+        path = PROCESSED / f"feats_{args.tag}_{country}.parquet"
+        cols = [c for c in pq.read_schema(path).names if c not in NON_FEATURES]
+        n = pq.ParquetFile(path).metadata.num_rows
+        X = np.empty((n, len(cols)), np.float32)
+        for j, c in enumerate(cols):
+            X[:, j] = pq.read_table(path, columns=[c]).column(c).to_numpy()
+        meta = pq.read_table(path, columns=["s1", "cand", "label"]).to_pandas()
+        return X, meta, cols
+
+    Xs, src, feats = load(args.source)
+    Xt, tgt, feats_t = load(args.target)
+    assert feats == feats_t
+    ys = src["label"].to_numpy().astype(np.float32)
     es_s = entity_fold(src["s1"].to_numpy() * 7 + 3, 10) == 0
     ents = np.unique(tgt["s1"].to_numpy())
     ents = ents[entity_fold(ents, 5) == 0]
