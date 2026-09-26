@@ -44,7 +44,8 @@ Blocking experiments report pair recall on 5k India S1 queries against the full 
 | E032c | 09-26 17:35 | Would the native-script dictionary fix the 886 native-script retrieval misses? | translate target names, compare with S1 | name token-set similarity median 69 → **100**; ≥80: 10.7 % → **99.8 %**; 99 % have an address | **Yes → E032 rebuild (~+0.0025 holdout)** |
 | E032 | 09-26 21:45 | Native-script dictionary data version through the full pipeline (v3 → stage 2 → anchors → stage 3 + E033–E035 features) | trainT/testT, India candidates rebuilt, 60k holdout | stage 2 **0.97551** expF (E030 0.9718), India .9641→.9739; stage 3 **0.98265** (E035 0.97989, +0.0028), US .9838 / India .9810; cand recall .9821, oracle .9939; P .9967 / R .9583; native-script misses 886→106 | **Champion** → day3_e032 (test inference running) |
 | E032lb | 09-26 21:50 | Loss budget of E032 stage 3 | counterfactual | loss .0173: empty-address .0073 (retrieval .0024 + matcher .0049, of which shared-name .0036), other retrieval .0039, other matcher .0030, FP .0032, native .0005 | empty-address = 42 % |
-| E036T | 09-26 22:10 | Stage 4 on E032 (EC2 r7i.2xlarge, LightGBM cross-fit) | `scripts/aws/run_e036t.sh` | running | — |
+| E036T | 09-26 22:10 | Stage 4 on E032 (EC2 r7i.2xlarge, LightGBM cross-fit) | `scripts/aws/run_e036t.sh`; OOF 32 min / 7.7 GB peak, stage-4 train 4.3 min on 8 vCPU | **0.98218** vs 0.98265 (−0.0005); P .9970 / R .9558; singletons .9815→.9770, |T|=1 .9315→.9353 | **Rejected** — stage 3 already holds the collective signal |
+| E038 | 09-26 22:55 | Does more training data help? Learning curve of E032 stage 3 | 25 / 50 / 100 % of training entities, fixed holdout (EC2) | running | decides the 3x-population run |
 ## Details
 
 ### E001 (failed)
