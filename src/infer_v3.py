@@ -37,6 +37,7 @@ from .candidates import countries_for
 from .collective import _texts, sibling_features
 from .extra_features import EXTRA_COLS, extra_features
 from .extra_features2 import EXTRA2_COLS, NameStats, extra_features2
+from .extra_features3 import EXTRA3_COLS, PoolNames, extra_features3
 from .features import add_context_features
 from .make_stage2 import CONTEXT_PREFIXES
 from .v3 import STAGE1_THRESHOLD, STAGE1_V3, stage1_frame, string_features
@@ -167,7 +168,9 @@ def pass2(country: str, run: Path, stage3: str, scores: str = "scores") -> None:
     s3m, s3f = _booster(stage3)
     need_extra = any(c in s3f for c in EXTRA_COLS)
     need_extra2 = any(c in s3f for c in EXTRA2_COLS)
-    if need_extra or need_extra2:
+    need_extra3 = any(c in s3f for c in EXTRA3_COLS)
+    pool = PoolNames(SPLIT, country) if need_extra3 else None
+    if need_extra or need_extra2 or need_extra3:
         s1_txt = pd.read_parquet(PROCESSED / f"{SPLIT}_s1_{country}.parquet", columns=["code", "name_norm", "addr_norm"]).set_index("code")
     nstats = NameStats(SPLIT, country) if need_extra2 else None
     (run / scores).mkdir(parents=True, exist_ok=True)
@@ -195,7 +198,7 @@ def pass2(country: str, run: Path, stage3: str, scores: str = "scores") -> None:
         cc = df["cand"].to_numpy()
         tx = _texts(SPLIT, country, cc)
         sf = sibling_features(df["s1"].to_numpy(), cc, p2, tx.loc[cc, "name_norm"].to_numpy(), tx.loc[cc, "addr_norm"].to_numpy())
-        if need_extra or need_extra2:
+        if need_extra or need_extra2 or need_extra3:
             q = s1_txt.reindex(df["s1"].to_numpy())
             qa, ca = q["addr_norm"].to_numpy(), tx.loc[cc, "addr_norm"].to_numpy()
             if need_extra:
@@ -203,6 +206,9 @@ def pass2(country: str, run: Path, stage3: str, scores: str = "scores") -> None:
             if need_extra2:
                 sf = pd.concat([sf, extra_features2(q["name_norm"].to_numpy(), tx.loc[cc, "name_norm"].to_numpy(),
                                                     qa, ca, nstats)], axis=1)
+            if need_extra3:
+                sf = pd.concat([sf, extra_features3(df["s1"].to_numpy(), qa, ca, tx.loc[cc, "name_norm"].to_numpy(),
+                                                    df["name_tset"].to_numpy(), df["addr_empty_c"].to_numpy(), pool)], axis=1)
             del q
         del tx
         df = pd.concat([df.reset_index(drop=True), sf], axis=1)

@@ -1,6 +1,6 @@
 """Append extra stage-3 features to a training table, written under a new tag; the
 source table is never modified.  Sets: ``num`` = E033 (``src/extra_features.py``),
-``name`` = E034 (``src/extra_features2.py``).
+``name`` = E034 (``src/extra_features2.py``), ``ctx`` = E035 (``src/extra_features3.py``).
 
 Usage: python -m src.patch_extra --country India --tag v3c_anc --out-tag v3c_ancx --sets num
 """
@@ -19,6 +19,7 @@ import pyarrow.parquet as pq
 from .collective import _texts
 from .extra_features import EXTRA_COLS, extra_features
 from .extra_features2 import EXTRA2_COLS, NameStats, extra_features2
+from .extra_features3 import EXTRA3_COLS, PoolNames, extra_features3
 
 ROOT = Path(__file__).resolve().parents[1]
 PROCESSED = ROOT / "data" / "processed"
@@ -30,7 +31,7 @@ def main() -> None:
     ap.add_argument("--tag", default="v3c_anc")
     ap.add_argument("--out-tag", default="v3c_ancx")
     ap.add_argument("--split", default="train")
-    ap.add_argument("--sets", default="num", help="comma list: num,name")
+    ap.add_argument("--sets", default="num", help="comma list: num,name,ctx")
     args = ap.parse_args()
     t0 = time.time()
     t = pq.read_table(PROCESSED / f"feats_{args.tag}_{args.country}.parquet")
@@ -50,6 +51,10 @@ def main() -> None:
         f = extra_features2(q["name_norm"].to_numpy(), tx["name_norm"].to_numpy(), q_addr, c_addr,
                             NameStats(args.split, args.country))
         cols += [(c, f[c].to_numpy()) for c in EXTRA2_COLS]
+    if "ctx" in sets:
+        f = extra_features3(s1, q_addr, c_addr, tx["name_norm"].to_numpy(), t.column("name_tset").to_numpy(),
+                            t.column("addr_empty_c").to_numpy(), PoolNames(args.split, args.country))
+        cols += [(c, f[c].to_numpy()) for c in EXTRA3_COLS]
     del q, tx
     for c, v in cols:
         t = t.append_column(c, pa.array(v))
