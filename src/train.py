@@ -128,7 +128,7 @@ def main() -> None:
         inner = entity_fold(s1 * 7 + 3, 10) == 0          # 10 % early-stop split
         tr = (~hold) & (~inner) if c in tr_c else np.zeros(s1.size, bool)
         if args.train_frac < 1.0:        # learning curve: subsample training entities only
-            tr &= entity_fold(s1 * 13 + 5, 1000) < int(args.train_frac * 1000)
+            tr &= entity_fold(s1 * 13 + 5, 100) < int(round(args.train_frac * 100))   # int8 folds: < 128
         es = (~hold) & inner if c in tr_c else np.zeros(s1.size, bool)
         ev = hold if c in ev_c else np.zeros(s1.size, bool)
         return tr, es, ev
