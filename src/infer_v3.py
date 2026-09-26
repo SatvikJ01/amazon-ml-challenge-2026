@@ -72,6 +72,7 @@ def _booster(exp: str):
 
 
 SPLIT, TAG = "test", "testall"
+PASS2_CHUNKS = 3
 
 
 def parts_of(country: str, part_entities: int = 200_000) -> list[np.ndarray]:
@@ -182,55 +183,66 @@ def pass2(country: str, run: Path, stage3: str, scores: str = "scores", stage4: 
         if sp.exists():
             continue
         t0 = time.time()
-        old = pd.read_parquet(run / "pass1_feats" / f"{country}_p{i}.parquet")
-        hits = hits_all[np.isin(hits_all["s1"].to_numpy(), old["s1"].unique())].reset_index(drop=True)
-        m = hits.merge(old[["s1", "cand"]].assign(_old=1), on=["s1", "cand"], how="left")
-        new = hits[m["_old"].isna().to_numpy()].reset_index(drop=True)
-        del m
-        new = anchor_pass._new_pair_features(country, new, split=SPLIT, tag=TAG, with_labels=False)
-        old = old.merge(hits, on=["s1", "cand"], how="left")
-        old["anc_hits"] = old["anc_hits"].fillna(0).astype(np.float32)
-        old["from_anchor_only"] = np.float32(0)
-        df = pd.concat([old, new], ignore_index=True)
-        del old, new, hits
-        gc.collect()
-        p2 = df["p2"].to_numpy().astype(np.float32)
-        df = df.drop(columns=[c for c in df.columns if c.startswith(CONTEXT_PREFIXES)] + [c for c in SIB_COLS if c in df.columns])
-        df = add_context_features(df)
-        cc = df["cand"].to_numpy()
-        tx = _texts(SPLIT, country, cc)
-        sf = sibling_features(df["s1"].to_numpy(), cc, p2, tx.loc[cc, "name_norm"].to_numpy(), tx.loc[cc, "addr_norm"].to_numpy())
-        if need_extra or need_extra2 or need_extra3:
-            q = s1_txt.reindex(df["s1"].to_numpy())
-            qa, ca = q["addr_norm"].to_numpy(), tx.loc[cc, "addr_norm"].to_numpy()
-            if need_extra:
-                sf = pd.concat([sf, extra_features(df["s1"].to_numpy(), p2, qa, ca)], axis=1)
-            if need_extra2:
-                sf = pd.concat([sf, extra_features2(q["name_norm"].to_numpy(), tx.loc[cc, "name_norm"].to_numpy(),
-                                                    qa, ca, nstats)], axis=1)
-            if need_extra3:
-                sf = pd.concat([sf, extra_features3(df["s1"].to_numpy(), qa, ca, tx.loc[cc, "name_norm"].to_numpy(),
-                                                    df["name_tset"].to_numpy(), df["addr_empty_c"].to_numpy(), pool)], axis=1)
-            del q
-        df = pd.concat([df.reset_index(drop=True), sf], axis=1)
-        for c in s3f:
-            if c not in df.columns:
-                df[c] = np.nan
-        prob = s3m.predict(df[s3f].to_numpy(np.float32)).astype(np.float32)
-        if s4m is not None:      # stage 4: collective features recomputed from stage-3 probabilities
-            s1a = df["s1"].to_numpy()
-            f4 = stage4_features(s1a, cc, prob, tx.loc[cc, "name_norm"].to_numpy(), tx.loc[cc, "addr_norm"].to_numpy(),
-                                 s1_txt["addr_norm"].reindex(s1a).to_numpy())
-            df = pd.concat([df, f4], axis=1)
-            for c in s4f:
+        fp = run / "pass1_feats" / f"{country}_p{i}.parquet"
+        import pyarrow.parquet as pq
+        ents = np.unique(pq.read_table(fp, columns=["s1"]).column("s1").to_numpy())
+        outs = []
+        # Entity chunks: every feature is computed within an entity, so chunking is exact;
+        # it keeps India parts (8 M anchor pairs) under the memory cap.
+        for chunk in np.array_split(ents, PASS2_CHUNKS):
+            old = pq.read_table(fp, filters=[("s1", "in", chunk.tolist())]).to_pandas()
+            hits = hits_all[np.isin(hits_all["s1"].to_numpy(), old["s1"].unique())].reset_index(drop=True)
+            m = hits.merge(old[["s1", "cand"]].assign(_old=1), on=["s1", "cand"], how="left")
+            new = hits[m["_old"].isna().to_numpy()].reset_index(drop=True)
+            del m
+            new = anchor_pass._new_pair_features(country, new, split=SPLIT, tag=TAG, with_labels=False)
+            old = old.merge(hits, on=["s1", "cand"], how="left")
+            old["anc_hits"] = old["anc_hits"].fillna(0).astype(np.float32)
+            old["from_anchor_only"] = np.float32(0)
+            df = pd.concat([old, new], ignore_index=True)
+            del old, new, hits
+            gc.collect()
+            p2 = df["p2"].to_numpy().astype(np.float32)
+            df = df.drop(columns=[c for c in df.columns if c.startswith(CONTEXT_PREFIXES)] + [c for c in SIB_COLS if c in df.columns])
+            df = add_context_features(df)
+            cc = df["cand"].to_numpy()
+            tx = _texts(SPLIT, country, cc)
+            sf = sibling_features(df["s1"].to_numpy(), cc, p2, tx.loc[cc, "name_norm"].to_numpy(), tx.loc[cc, "addr_norm"].to_numpy())
+            if need_extra or need_extra2 or need_extra3:
+                q = s1_txt.reindex(df["s1"].to_numpy())
+                qa, ca = q["addr_norm"].to_numpy(), tx.loc[cc, "addr_norm"].to_numpy()
+                if need_extra:
+                    sf = pd.concat([sf, extra_features(df["s1"].to_numpy(), p2, qa, ca)], axis=1)
+                if need_extra2:
+                    sf = pd.concat([sf, extra_features2(q["name_norm"].to_numpy(), tx.loc[cc, "name_norm"].to_numpy(),
+                                                        qa, ca, nstats)], axis=1)
+                if need_extra3:
+                    sf = pd.concat([sf, extra_features3(df["s1"].to_numpy(), qa, ca, tx.loc[cc, "name_norm"].to_numpy(),
+                                                        df["name_tset"].to_numpy(), df["addr_empty_c"].to_numpy(), pool)], axis=1)
+                del q
+            df = pd.concat([df.reset_index(drop=True), sf], axis=1)
+            for c in s3f:
                 if c not in df.columns:
                     df[c] = np.nan
-            prob = s4m.predict(df[s4f].to_numpy(np.float32)).astype(np.float32)
-        del tx
-        out = pd.DataFrame({"s1": df["s1"].to_numpy(), "cand": df["cand"].to_numpy(), "src": df["src"].to_numpy(), "prob": prob})
+            prob = s3m.predict(df[s3f].to_numpy(np.float32)).astype(np.float32)
+            if s4m is not None:      # stage 4: collective features recomputed from stage-3 probabilities
+                s1a = df["s1"].to_numpy()
+                f4 = stage4_features(s1a, cc, prob, tx.loc[cc, "name_norm"].to_numpy(), tx.loc[cc, "addr_norm"].to_numpy(),
+                                     s1_txt["addr_norm"].reindex(s1a).to_numpy())
+                df = pd.concat([df, f4], axis=1)
+                for c in s4f:
+                    if c not in df.columns:
+                        df[c] = np.nan
+                prob = s4m.predict(df[s4f].to_numpy(np.float32)).astype(np.float32)
+            del tx
+            outs.append(pd.DataFrame({"s1": df["s1"].to_numpy(), "cand": df["cand"].to_numpy(),
+                                      "src": df["src"].to_numpy(), "prob": prob}))
+            del df
+            gc.collect()
+        out = pd.concat(outs, ignore_index=True)
         out.to_parquet(sp, index=False)
         print(f"  pass2 {country} part {i}: {len(out):,} pairs scored ({time.time() - t0:.0f}s)", flush=True)
-        del df, out
+        del out, outs
         gc.collect()
 
 
