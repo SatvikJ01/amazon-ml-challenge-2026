@@ -148,6 +148,7 @@ def oof_stage2(tag: str, exp: str, out: Path, countries=("India", "US"), model: 
     fold = entity_fold(s1, 5)
     es = entity_fold(s1 * 7 + 3, 10) == 0
     p2 = np.zeros(n, np.float32)
+    dall = None
     for k in range(5):
         tr = np.flatnonzero((fold != k) & ~es); va = np.flatnonzero((fold != k) & es); te = np.flatnonzero(fold == k)
         if model == "xgb":
@@ -155,12 +156,32 @@ def oof_stage2(tag: str, exp: str, out: Path, countries=("India", "US"), model: 
             params = dict(objective="binary:logistic", eval_metric="logloss", tree_method="hist", device="cuda",
                           learning_rate=0.05, max_depth=9, min_child_weight=5, subsample=0.8,
                           colsample_bytree=0.8, reg_lambda=1.0, max_bin=128, seed=0)
-            dtr = xgb.QuantileDMatrix(X[tr], y[tr], max_bin=128)
-            dva = xgb.QuantileDMatrix(X[va], y[va], ref=dtr, max_bin=128)
+            # One quantised matrix over all rows; each fold's training set is selected by
+            # zero sample weights (no zero-weight row contributes to any gradient or
+            # hessian), which avoids copying ~2/3 of X per fold.
+            if dall is None:          # built in 1M-row batches: no full-size temporary copy of X
+                class _Batches(xgb.DataIter):
+                    def __init__(self):
+                        self.i = 0
+                        super().__init__()
+                    def next(self, input_data):
+                        if self.i >= n:
+                            return 0
+                        j = min(self.i + 1_000_000, n)
+                        input_data(data=X[self.i:j], label=y[self.i:j])
+                        self.i = j
+                        return 1
+                    def reset(self):
+                        self.i = 0
+                dall = xgb.QuantileDMatrix(_Batches(), max_bin=128)
+            w = np.zeros(n, np.float32); w[tr] = 1.0
+            dall.set_weight(w)
+            dtr = dall
+            dva = xgb.QuantileDMatrix(X[va], y[va], ref=dall, max_bin=128)
             b = xgb.train(params, dtr, 3000, evals=[(dva, "es")], early_stopping_rounds=100, verbose_eval=False)
             p2[te] = b.predict(xgb.DMatrix(X[te]), iteration_range=(0, b.best_iteration + 1))
             best = b.best_iteration
-            del dtr, dva, b
+            del dva, b
         else:
             m = lgb.train(LGB_PARAMS, lgb.Dataset(X[tr], y[tr]), 3000, valid_sets=[lgb.Dataset(X[va], y[va])],
                           callbacks=[lgb.early_stopping(100, verbose=False)])

@@ -38,6 +38,7 @@ from .collective import _texts, sibling_features
 from .extra_features import EXTRA_COLS, extra_features
 from .extra_features2 import EXTRA2_COLS, NameStats, extra_features2
 from .extra_features3 import EXTRA3_COLS, PoolNames, extra_features3
+from .stage4 import stage4_features
 from .features import add_context_features
 from .make_stage2 import CONTEXT_PREFIXES
 from .v3 import STAGE1_THRESHOLD, STAGE1_V3, stage1_frame, string_features
@@ -164,13 +165,14 @@ def anchors(country: str, run: Path) -> None:
     print(f"  anchors {country}: {len(h):,} anchor-retrieved pairs", flush=True)
 
 
-def pass2(country: str, run: Path, stage3: str, scores: str = "scores") -> None:
+def pass2(country: str, run: Path, stage3: str, scores: str = "scores", stage4: str | None = None) -> None:
     s3m, s3f = _booster(stage3)
+    s4m, s4f = _booster(stage4) if stage4 else (None, None)
     need_extra = any(c in s3f for c in EXTRA_COLS)
     need_extra2 = any(c in s3f for c in EXTRA2_COLS)
     need_extra3 = any(c in s3f for c in EXTRA3_COLS)
     pool = PoolNames(SPLIT, country) if need_extra3 else None
-    if need_extra or need_extra2 or need_extra3:
+    if need_extra or need_extra2 or need_extra3 or stage4:
         s1_txt = pd.read_parquet(PROCESSED / f"{SPLIT}_s1_{country}.parquet", columns=["code", "name_norm", "addr_norm"]).set_index("code")
     nstats = NameStats(SPLIT, country) if need_extra2 else None
     (run / scores).mkdir(parents=True, exist_ok=True)
@@ -210,12 +212,21 @@ def pass2(country: str, run: Path, stage3: str, scores: str = "scores") -> None:
                 sf = pd.concat([sf, extra_features3(df["s1"].to_numpy(), qa, ca, tx.loc[cc, "name_norm"].to_numpy(),
                                                     df["name_tset"].to_numpy(), df["addr_empty_c"].to_numpy(), pool)], axis=1)
             del q
-        del tx
         df = pd.concat([df.reset_index(drop=True), sf], axis=1)
         for c in s3f:
             if c not in df.columns:
                 df[c] = np.nan
         prob = s3m.predict(df[s3f].to_numpy(np.float32)).astype(np.float32)
+        if s4m is not None:      # stage 4: collective features recomputed from stage-3 probabilities
+            s1a = df["s1"].to_numpy()
+            f4 = stage4_features(s1a, cc, prob, tx.loc[cc, "name_norm"].to_numpy(), tx.loc[cc, "addr_norm"].to_numpy(),
+                                 s1_txt["addr_norm"].reindex(s1a).to_numpy())
+            df = pd.concat([df, f4], axis=1)
+            for c in s4f:
+                if c not in df.columns:
+                    df[c] = np.nan
+            prob = s4m.predict(df[s4f].to_numpy(np.float32)).astype(np.float32)
+        del tx
         out = pd.DataFrame({"s1": df["s1"].to_numpy(), "cand": df["cand"].to_numpy(), "src": df["src"].to_numpy(), "prob": prob})
         out.to_parquet(sp, index=False)
         print(f"  pass2 {country} part {i}: {len(out):,} pairs scored ({time.time() - t0:.0f}s)", flush=True)
@@ -266,6 +277,7 @@ def main() -> None:
     ap.add_argument("--stage1", default="E030_stage1")
     ap.add_argument("--stage2", default="E030_stage2")
     ap.add_argument("--stage3", default="E030_stage3")
+    ap.add_argument("--stage4", default=None, help="pass2: optional stage-4 model")
     ap.add_argument("--sub-id", default=None)
     ap.add_argument("--note", default="")
     ap.add_argument("--split", default="test", help="data version (test or testT)")
@@ -285,7 +297,7 @@ def main() -> None:
     elif args.step == "anchors":
         anchors(args.country, run)
     elif args.step == "pass2":
-        pass2(args.country, run, args.stage3, args.scores)
+        pass2(args.country, run, args.stage3, args.scores, args.stage4)
     else:
         write(run, args.sub_id, args.note, args.from_pass1, args.scores)
 
