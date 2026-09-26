@@ -39,6 +39,7 @@ from .collective import _texts, sibling_features
 from .extra_features import EXTRA_COLS, extra_features
 from .extra_features2 import EXTRA2_COLS, NameStats, extra_features2
 from .extra_features3 import EXTRA3_COLS, PoolNames, extra_features3
+from .extra_features4 import EXTRA4_COLS, anti_match_features
 from .stage4 import stage4_features
 from .features import add_context_features
 from .make_stage2 import CONTEXT_PREFIXES
@@ -176,10 +177,11 @@ def pass2(country: str, run: Path, stage3: str, scores: str = "scores", stage4: 
     need_extra = any(c in s3f for c in EXTRA_COLS)
     need_extra2 = any(c in s3f for c in EXTRA2_COLS)
     need_extra3 = any(c in s3f for c in EXTRA3_COLS)
+    need_extra4 = any(c in s3f for c in EXTRA4_COLS)
     pool = PoolNames(SPLIT, country) if need_extra3 else None
-    if need_extra or need_extra2 or need_extra3 or stage4:
+    if need_extra or need_extra2 or need_extra3 or need_extra4 or stage4:
         s1_txt = pd.read_parquet(PROCESSED / f"{SPLIT}_s1_{country}.parquet", columns=["code", "name_norm", "addr_norm"]).set_index("code")
-    nstats = NameStats(SPLIT, country) if need_extra2 else None
+    nstats = NameStats(SPLIT, country) if (need_extra2 or need_extra4) else None
     (run / scores).mkdir(parents=True, exist_ok=True)
     hits_all = pd.read_parquet(run / f"hits_test_{country}.parquet")
     for i in range(len(parts_of(country))):
@@ -212,7 +214,7 @@ def pass2(country: str, run: Path, stage3: str, scores: str = "scores", stage4: 
             cc = df["cand"].to_numpy()
             tx = _texts(SPLIT, country, cc)
             sf = sibling_features(df["s1"].to_numpy(), cc, p2, tx.loc[cc, "name_norm"].to_numpy(), tx.loc[cc, "addr_norm"].to_numpy())
-            if need_extra or need_extra2 or need_extra3:
+            if need_extra or need_extra2 or need_extra3 or need_extra4:
                 q = s1_txt.reindex(df["s1"].to_numpy())
                 qa, ca = q["addr_norm"].to_numpy(), tx.loc[cc, "addr_norm"].to_numpy()
                 if need_extra:
@@ -223,6 +225,9 @@ def pass2(country: str, run: Path, stage3: str, scores: str = "scores", stage4: 
                 if need_extra3:
                     sf = pd.concat([sf, extra_features3(df["s1"].to_numpy(), qa, ca, tx.loc[cc, "name_norm"].to_numpy(),
                                                         df["name_tset"].to_numpy(), df["addr_empty_c"].to_numpy(), pool)], axis=1)
+                if need_extra4:
+                    sf = pd.concat([sf, anti_match_features(q["name_norm"].to_numpy(), tx.loc[cc, "name_norm"].to_numpy(),
+                                                            qa, ca, nstats)], axis=1)
                 del q
             df = pd.concat([df.reset_index(drop=True), sf], axis=1)
             for c in s3f:
