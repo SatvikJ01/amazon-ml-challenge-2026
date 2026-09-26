@@ -74,7 +74,7 @@ def _booster(exp: str):
 
 
 SPLIT, TAG = "test", "testall"
-PASS2_CHUNKS = 3
+PASS2_CHUNKS = 4
 
 
 def parts_of(country: str, part_entities: int = 200_000) -> list[np.ndarray]:
@@ -170,6 +170,27 @@ def anchors(country: str, run: Path) -> None:
     print(f"  anchors {country}: {len(h):,} anchor-retrieved pairs", flush=True)
 
 
+def _save_feats(path: Path, df: pd.DataFrame, feats: list[str], prob: np.ndarray, rows: int = 250_000) -> None:
+    """Persist the stage-3 inputs of one pass-2 chunk (ids, src, 114 features, prob) so later
+    stage-3 variants / second-level models can score the test without recomputing features.
+    Written in row groups of ``rows`` so the extra memory is one small slice."""
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp, w = path.with_suffix(".partial"), None
+    for a in range(0, len(df), rows):
+        sl = df.iloc[a:a + rows]
+        cols = {"s1": pa.array(sl["s1"].to_numpy()), "cand": pa.array(sl["cand"].to_numpy()),
+                "src": pa.array(sl["src"].to_numpy()), "prob3": pa.array(prob[a:a + rows])}
+        cols.update({c: pa.array(sl[c].to_numpy(np.float32)) for c in feats})
+        t = pa.table(cols)
+        w = w or pq.ParquetWriter(tmp, t.schema, compression="zstd")
+        w.write_table(t)
+    if w is not None:
+        w.close()
+        tmp.replace(path)
+
+
 def pass2(country: str, run: Path, stage3: str, scores: str = "scores", stage4: str | None = None,
           only_part: int | None = None) -> None:
     s3m, s3f = _booster(stage3)
@@ -195,7 +216,7 @@ def pass2(country: str, run: Path, stage3: str, scores: str = "scores", stage4: 
         outs = []
         # Entity chunks: every feature is computed within an entity, so chunking is exact;
         # it keeps India parts (8 M anchor pairs) under the memory cap.
-        for chunk in np.array_split(ents, PASS2_CHUNKS):
+        for k_chunk, chunk in enumerate(np.array_split(ents, PASS2_CHUNKS)):
             old = pq.read_table(fp, filters=[("s1", "in", chunk.tolist())]).to_pandas()
             hits = hits_all[np.isin(hits_all["s1"].to_numpy(), old["s1"].unique())].reset_index(drop=True)
             m = hits.merge(old[["s1", "cand"]].assign(_old=1), on=["s1", "cand"], how="left")
@@ -234,6 +255,8 @@ def pass2(country: str, run: Path, stage3: str, scores: str = "scores", stage4: 
                 if c not in df.columns:
                     df[c] = np.nan
             prob = s3m.predict(df[s3f].to_numpy(np.float32)).astype(np.float32)
+            if os.environ.get("PASS2_SAVE_FEATS", "1") == "1":
+                _save_feats(run / f"{scores}_feats" / f"{country}_p{i}_c{k_chunk}.parquet", df, s3f, prob)
             if s4m is not None:      # stage 4: collective features recomputed from stage-3 probabilities
                 s1a = df["s1"].to_numpy()
                 f4 = stage4_features(s1a, cc, prob, tx.loc[cc, "name_norm"].to_numpy(), tx.loc[cc, "addr_norm"].to_numpy(),
