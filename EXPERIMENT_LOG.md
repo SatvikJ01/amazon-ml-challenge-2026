@@ -36,7 +36,8 @@ Blocking experiments report pair recall on 5k India S1 queries against the full 
 | E027 | 09-26 03:40 | Is native-script transliteration deterministic (dictionary-fixable)? | align Indic-script S2/S3 names with S1 names in train GT | 18.2 % of India S2/S3 names Indic; mapping 96.6 % deterministic over 1,347 tokens; test coverage 96.4 % | **Yes → E032** |
 | E030lb | 09-26 04:55 | Loss budget of v3 stage 2 | counterfactual fixes, 60k holdout | blocking .0114 (native-script .0037, empty-addr .0026, other .0051); matcher .0116 (empty-addr .0049, other .0060); FP .0067 | drives E032 + stage 3 |
 | E030s3 | 09-26 15:05 | Stage 3 on v3: GPU cross-fitted p2 → anchors (p2 ≥ 0.9) retrieve top-3 → sibling features | 60k holdout, same decision rule (expF) | **0.97522** vs stage 2 0.97180 (+0.0034); cand recall .9785 (from .9717); oracle .9918; US .9794 / India .9690 | **Champion** (day2_s2 candidate) |
-| E033 | 09-26 15:10 | Do alphanumeric house-number agreement + within-entity number consensus fix the dominant FP/FN pattern? | 11 new stage-3 features (`src/extra_features.py`), same LightGBM | running | — |
+| E033 | 09-26 15:10 | Do alphanumeric house-number agreement + within-entity number consensus fix the dominant FP/FN pattern? | 11 new stage-3 features (`src/extra_features.py`), same LightGBM, 60k holdout | **0.97711** vs 0.97522 (+0.0019); US .9808 / India .9715; singletons .9679→.9723, |T|=1 .9091→.9146; `nsup_extra_p` 3rd by gain | **Champion** |
+| E034 | 09-26 14:40 | Name-token substitution (label-free filler-word score) + shared-address counts on top of E033 | 8 more stage-3 features (`src/extra_features2.py`) | running | — |
 ## Details
 
 ### E001 (failed)

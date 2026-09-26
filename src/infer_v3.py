@@ -36,6 +36,7 @@ from . import anchor_pass
 from .candidates import countries_for
 from .collective import _texts, sibling_features
 from .extra_features import EXTRA_COLS, extra_features
+from .extra_features2 import EXTRA2_COLS, NameStats, extra_features2
 from .features import add_context_features
 from .make_stage2 import CONTEXT_PREFIXES
 from .v3 import STAGE1_THRESHOLD, STAGE1_V3, stage1_frame, string_features
@@ -126,22 +127,33 @@ def pass1(country: str, run: Path, stage1: str, stage2: str, only_part: int | No
 
 def rescore(country: str, run: Path, stage2x: str) -> None:
     """Recompute p2 in the pass-1 files with the GPU XGBoost stage-2 model, so test p2
-    comes from the same model family as the cross-fitted training p2."""
+    comes from the same model family as the cross-fitted training p2.  Streams each
+    part in row batches (a whole India part plus copies exceeded 5.5 GB)."""
+    import pyarrow as pa
+    import pyarrow.parquet as pq
     import xgboost as xgb
     booster = xgb.Booster(); booster.load_model(str(EXPERIMENTS / stage2x / "model.json"))
     booster.set_param({"device": "cuda"})
     feats = json.loads((EXPERIMENTS / stage2x / "features.json").read_text())
     parts = sorted((run / "pass1_feats").glob(f"{country}_p*.parquet"))
     for fp in parts:
-        df = pd.read_parquet(fp)
-        df["p2"] = booster.predict(xgb.DMatrix(df[feats].to_numpy(np.float32), feature_names=feats),
-                                   iteration_range=(0, booster.best_iteration + 1)).astype(np.float32)
-        df.to_parquet(fp.with_suffix(".partial"), index=False, compression="zstd")
-        fp.with_suffix(".partial").replace(fp)
+        tmp, w, anc, tot, n = fp.with_suffix(".partial"), None, [], 0.0, 0
+        for batch in pq.ParquetFile(fp).iter_batches(batch_size=500_000):
+            t = pa.Table.from_batches([batch])
+            X = np.column_stack([t.column(f).to_numpy(zero_copy_only=False).astype(np.float32) for f in feats])
+            p2 = booster.predict(xgb.DMatrix(X, feature_names=feats),
+                                 iteration_range=(0, booster.best_iteration + 1)).astype(np.float32)
+            del X
+            t = t.set_column(t.schema.get_field_index("p2"), pa.field("p2", pa.float32()), pa.array(p2))
+            w = w or pq.ParquetWriter(tmp, t.schema, compression="zstd")
+            w.write_table(t)
+            anc.append(pd.DataFrame({"s1": t.column("s1").to_numpy(), "cand": t.column("cand").to_numpy(), "prob": p2}))
+            tot, n = tot + float(p2.sum()), n + len(p2)
+        w.close()
+        tmp.replace(fp)
         i = int(fp.stem.split("_p")[1])
-        df[["s1", "cand"]].assign(prob=df["p2"]).to_parquet(
-            run / "pass1_anchors" / f"{country}_p{i}of{len(parts)}.parquet", index=False)
-        print(f"  rescore {fp.name}: {len(df):,} pairs, mean p2 {df['p2'].mean():.4f}", flush=True)
+        pd.concat(anc, ignore_index=True).to_parquet(run / "pass1_anchors" / f"{country}_p{i}of{len(parts)}.parquet", index=False)
+        print(f"  rescore {fp.name}: {n:,} pairs, mean p2 {tot / n:.4f}", flush=True)
 
 
 def anchors(country: str, run: Path) -> None:
@@ -154,8 +166,10 @@ def anchors(country: str, run: Path) -> None:
 def pass2(country: str, run: Path, stage3: str, scores: str = "scores") -> None:
     s3m, s3f = _booster(stage3)
     need_extra = any(c in s3f for c in EXTRA_COLS)
-    if need_extra:
-        s1_addr = pd.read_parquet(PROCESSED / f"{SPLIT}_s1_{country}.parquet", columns=["code", "addr_norm"]).set_index("code")["addr_norm"]
+    need_extra2 = any(c in s3f for c in EXTRA2_COLS)
+    if need_extra or need_extra2:
+        s1_txt = pd.read_parquet(PROCESSED / f"{SPLIT}_s1_{country}.parquet", columns=["code", "name_norm", "addr_norm"]).set_index("code")
+    nstats = NameStats(SPLIT, country) if need_extra2 else None
     (run / scores).mkdir(parents=True, exist_ok=True)
     hits_all = pd.read_parquet(run / f"hits_test_{country}.parquet")
     for i in range(len(parts_of(country))):
@@ -181,10 +195,15 @@ def pass2(country: str, run: Path, stage3: str, scores: str = "scores") -> None:
         cc = df["cand"].to_numpy()
         tx = _texts(SPLIT, country, cc)
         sf = sibling_features(df["s1"].to_numpy(), cc, p2, tx.loc[cc, "name_norm"].to_numpy(), tx.loc[cc, "addr_norm"].to_numpy())
-        if need_extra:
-            s1a = df["s1"].to_numpy()
-            ef = extra_features(s1a, p2, s1_addr.reindex(s1a).to_numpy(), tx.loc[cc, "addr_norm"].to_numpy())
-            sf = pd.concat([sf, ef], axis=1)
+        if need_extra or need_extra2:
+            q = s1_txt.reindex(df["s1"].to_numpy())
+            qa, ca = q["addr_norm"].to_numpy(), tx.loc[cc, "addr_norm"].to_numpy()
+            if need_extra:
+                sf = pd.concat([sf, extra_features(df["s1"].to_numpy(), p2, qa, ca)], axis=1)
+            if need_extra2:
+                sf = pd.concat([sf, extra_features2(q["name_norm"].to_numpy(), tx.loc[cc, "name_norm"].to_numpy(),
+                                                    qa, ca, nstats)], axis=1)
+            del q
         del tx
         df = pd.concat([df.reset_index(drop=True), sf], axis=1)
         for c in s3f:

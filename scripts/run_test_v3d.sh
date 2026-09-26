@@ -4,7 +4,7 @@
 set -u
 cd "$(dirname "$0")/.."
 CAP="systemd-run --user --scope -q -p MemoryMax=5500M -p MemorySwapMax=0"
-for c in France India US; do
+for c in ${RESCORE:-France India US}; do
   $CAP .venv/bin/python -u -m src.infer_v3 rescore --country $c; rc=$?; echo "EXIT $rc rescore $c"
   [ $rc -eq 0 ] || { echo FAILED; exit 1; }
 done
