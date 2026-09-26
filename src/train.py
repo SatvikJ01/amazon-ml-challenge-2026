@@ -101,6 +101,7 @@ def main() -> None:
     ap.add_argument("--holdout-fold", type=int, default=0)
     ap.add_argument("--rounds", type=int, default=3000)
     ap.add_argument("--drop-features", nargs="*", default=[])
+    ap.add_argument("--train-frac", type=float, default=1.0, help="fraction of training entities (holdout unchanged)")
     ap.add_argument("--model", choices=["lgb", "xgb"], default="lgb",
                     help="xgb = XGBoost on the GPU (second model family for ensembling)")
     args = ap.parse_args()
@@ -126,6 +127,8 @@ def main() -> None:
         hold = fold == args.holdout_fold
         inner = entity_fold(s1 * 7 + 3, 10) == 0          # 10 % early-stop split
         tr = (~hold) & (~inner) if c in tr_c else np.zeros(s1.size, bool)
+        if args.train_frac < 1.0:        # learning curve: subsample training entities only
+            tr &= entity_fold(s1 * 13 + 5, 1000) < int(args.train_frac * 1000)
         es = (~hold) & inner if c in tr_c else np.zeros(s1.size, bool)
         ev = hold if c in ev_c else np.zeros(s1.size, bool)
         return tr, es, ev
