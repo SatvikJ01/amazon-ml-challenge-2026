@@ -40,6 +40,8 @@ Blocking experiments report pair recall on 5k India S1 queries against the full 
 | E034 | 09-26 14:40 | Name-token substitution (label-free filler-word score) + shared-address counts on top of E033 | 8 more stage-3 features (`src/extra_features2.py`), 60k holdout | **0.97942** vs E033 0.97711 (+0.0023); US .9829 / India .9742; singletons .9753, |T|=1 .9241 | **Champion** → day2_s2 |
 | E035 | 09-26 15:14 | House-number distance/parity, empty-address context, name duplication on top of E034 | 9 more stage-3 features (`src/extra_features3.py`) | **0.97989** vs 0.97942 (+0.0005); US .9834 / India .9746 | **Champion** → day2_s2 |
 | E036 | 09-26 15:25 | Second collective round: sibling / number-consensus features from cross-fitted stage-3 p3 | stage 4 (`src/stage4.py`) | running | — |
+| E037 | 09-26 17:25 | Can similarity retrieval recover the 4,447 retrieval misses left by forward ∪ reverse ∪ key ∪ anchors? | name-only / address-only rare-term IDF, char 3-gram TF-IDF (name, address), BM25, RRF; incremental over the E035 union, 60k holdout | union of all channels: depth 5 → 3.9 % of misses (+0.0008 recall, +21 cands/ent), depth 20 → 11.8 % (+0.0025 recall, +114 cands/ent); best single: address (5.5 % @20); RRF top-10/source 2.2 % | **Not a big lever** — remaining misses are not lexically close in name or address |
+| E032c | 09-26 17:35 | Would the native-script dictionary fix the 886 native-script retrieval misses? | translate target names, compare with S1 | name token-set similarity median 69 → **100**; ≥80: 10.7 % → **99.8 %**; 99 % have an address | **Yes → E032 rebuild (~+0.0025 holdout)** |
 ## Details
 
 ### E001 (failed)
