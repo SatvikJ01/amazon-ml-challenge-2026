@@ -2,14 +2,14 @@
 
 | Slot | Value |
 |---|---|
-| CURRENT BEST MODEL (holdout) | **E030 v3 stage 2**: forward ∪ reverse ∪ exact-key candidates → cheap stage 1 → LightGBM (73 feats), 300k training entities |
-| CURRENT BEST CV | **0.9722** (60k holdout) · 0.9720 on the original 30k holdout (E023B 0.9669, E013 0.9614) · US .9775 · India .9641 |
-| CANDIDATE RECALL / ORACLE | .9717 / .9901 |
+| CURRENT BEST MODEL (holdout) | **E034 stage 3**: v3 stage 2 → GPU cross-fitted p2 → anchors → LightGBM stage 3 with sibling, number-consensus (E033) and name-substitution / shared-address (E034) features |
+| CURRENT BEST CV | **0.97942** (60k holdout, expF) · E033 0.97711 · E030 stage 3 0.97522 · stage 2 0.97180 (expF) · US .9829 · India .9742 |
+| CANDIDATE RECALL / ORACLE | .9785 / .9918 (with anchor candidates) |
 | BEST SUBMISSION (LB) | day1_s2 = E013 + expF + exclusivity: **0.953** (day1_s1: 0.952) |
-| IN PROGRESS | E030 stage 3 (OOF p2 → anchors → sibling stage), test inference E030 (auto-writes day2_s1), E032 native-script dictionary rebuild |
+| IN PROGRESS | day2_s1 (v3 stage 2) submitted by user — awaiting LB; day2_s2 = E034 test pass 2 running |
 | ROLLBACK | E013 cascade (day1 submissions), all artefacts untouched |
 | LOSS BUDGET (E030 s2) | blocking .0114 · matcher .0116 · false positives .0067 |
 | RISKS | France unseen (LB-implied ~0.91 for E013); test has ~40 % distractors vs 26 % train (label-free estimate) → precision harder on test |
-| NEXT | day2_s1 = E030 (stage 3 if it beats stage 2); day2_s2 = E032; E031 self-training for France |
+| NEXT | more stage-3 feature iterations from the remaining-error sample; E032 native-script rebuild |
 
-Updated 2026-09-26 05:10 IST.
+Updated 2026-09-26 15:00 IST.
