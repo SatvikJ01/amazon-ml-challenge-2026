@@ -42,6 +42,9 @@ Blocking experiments report pair recall on 5k India S1 queries against the full 
 | E036 | 09-26 15:25 | Second collective round: sibling / number-consensus features from cross-fitted stage-3 p3 | stage 4 (`src/stage4.py`) | running | — |
 | E037 | 09-26 17:25 | Can similarity retrieval recover the 4,447 retrieval misses left by forward ∪ reverse ∪ key ∪ anchors? | name-only / address-only rare-term IDF, char 3-gram TF-IDF (name, address), BM25, RRF; incremental over the E035 union, 60k holdout | union of all channels: depth 5 → 3.9 % of misses (+0.0008 recall, +21 cands/ent), depth 20 → 11.8 % (+0.0025 recall, +114 cands/ent); best single: address (5.5 % @20); RRF top-10/source 2.2 % | **Not a big lever** — remaining misses are not lexically close in name or address |
 | E032c | 09-26 17:35 | Would the native-script dictionary fix the 886 native-script retrieval misses? | translate target names, compare with S1 | name token-set similarity median 69 → **100**; ≥80: 10.7 % → **99.8 %**; 99 % have an address | **Yes → E032 rebuild (~+0.0025 holdout)** |
+| E032 | 09-26 21:45 | Native-script dictionary data version through the full pipeline (v3 → stage 2 → anchors → stage 3 + E033–E035 features) | trainT/testT, India candidates rebuilt, 60k holdout | stage 2 **0.97551** expF (E030 0.9718), India .9641→.9739; stage 3 **0.98265** (E035 0.97989, +0.0028), US .9838 / India .9810; cand recall .9821, oracle .9939; P .9967 / R .9583; native-script misses 886→106 | **Champion** → day3_e032 (test inference running) |
+| E032lb | 09-26 21:50 | Loss budget of E032 stage 3 | counterfactual | loss .0173: empty-address .0073 (retrieval .0024 + matcher .0049, of which shared-name .0036), other retrieval .0039, other matcher .0030, FP .0032, native .0005 | empty-address = 42 % |
+| E036T | 09-26 22:10 | Stage 4 on E032 (EC2 r7i.2xlarge, LightGBM cross-fit) | `scripts/aws/run_e036t.sh` | running | — |
 ## Details
 
 ### E001 (failed)
