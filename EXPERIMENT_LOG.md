@@ -38,6 +38,8 @@ Blocking experiments report pair recall on 5k India S1 queries against the full 
 | E030s3 | 09-26 15:05 | Stage 3 on v3: GPU cross-fitted p2 → anchors (p2 ≥ 0.9) retrieve top-3 → sibling features | 60k holdout, same decision rule (expF) | **0.97522** vs stage 2 0.97180 (+0.0034); cand recall .9785 (from .9717); oracle .9918; US .9794 / India .9690 | **Champion** (day2_s2 candidate) |
 | E033 | 09-26 15:10 | Do alphanumeric house-number agreement + within-entity number consensus fix the dominant FP/FN pattern? | 11 new stage-3 features (`src/extra_features.py`), same LightGBM, 60k holdout | **0.97711** vs 0.97522 (+0.0019); US .9808 / India .9715; singletons .9679→.9723, |T|=1 .9091→.9146; `nsup_extra_p` 3rd by gain | **Champion** |
 | E034 | 09-26 14:40 | Name-token substitution (label-free filler-word score) + shared-address counts on top of E033 | 8 more stage-3 features (`src/extra_features2.py`), 60k holdout | **0.97942** vs E033 0.97711 (+0.0023); US .9829 / India .9742; singletons .9753, |T|=1 .9241 | **Champion** → day2_s2 |
+| E035 | 09-26 15:14 | House-number distance/parity, empty-address context, name duplication on top of E034 | 9 more stage-3 features (`src/extra_features3.py`) | **0.97989** vs 0.97942 (+0.0005); US .9834 / India .9746 | **Champion** → day2_s2 |
+| E036 | 09-26 15:25 | Second collective round: sibling / number-consensus features from cross-fitted stage-3 p3 | stage 4 (`src/stage4.py`) | running | — |
 ## Details
 
 ### E001 (failed)
