@@ -5,7 +5,7 @@
 set -u
 cd "$(dirname "$0")/../.."
 P=data/processed
-step() { echo ">>> $(date +%H:%M) $*"; /usr/bin/time -f "PEAK_RSS_KB %M  WALL %e s" .venv/bin/python -u -m "$@"; local rc=$?; echo "EXIT $rc $1 $2 $4 $6"; return $rc; }
+step() { echo ">>> $(date +%H:%M) $*"; /usr/bin/time -f "PEAK_RSS_KB %M  WALL %e s" .venv/bin/python -u -m "$@"; local rc=$?; echo "EXIT $rc $*" | cut -c1-140; return $rc; }
 par() { "$@" & }                       # used as: par step ...; par step ...; waitall
 waitall() { local ok=0; for p in $(jobs -p); do wait $p || ok=1; done; [ $ok -eq 0 ] || { echo FAILED; exit 1; }; }
 one() { step "$@" || { echo FAILED; exit 1; }; }
