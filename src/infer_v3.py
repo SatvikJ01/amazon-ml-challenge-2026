@@ -35,6 +35,7 @@ import pandas as pd
 from . import anchor_pass
 from .candidates import countries_for
 from .collective import _texts, sibling_features
+from .extra_features import EXTRA_COLS, extra_features
 from .features import add_context_features
 from .make_stage2 import CONTEXT_PREFIXES
 from .v3 import STAGE1_THRESHOLD, STAGE1_V3, stage1_frame, string_features
@@ -45,9 +46,26 @@ EXPERIMENTS = ROOT / "experiments"
 SIB_COLS = anchor_pass.SIB_COLS
 
 
-def _booster(exp: str) -> tuple[lgb.Booster, list[str]]:
-    return (lgb.Booster(model_file=str(EXPERIMENTS / exp / "model.txt")),
-            json.loads((EXPERIMENTS / exp / "features.json").read_text()))
+class _XGB:
+    """XGBoost booster with LightGBM's ``predict(X)`` interface (best iteration)."""
+    def __init__(self, path: Path, feats: list[str]):
+        import xgboost as xgb
+        self.feats = feats
+        self.xgb, self.b = xgb, xgb.Booster()
+        self.b.load_model(str(path))
+        self.b.set_param({"device": "cuda"})
+
+    def predict(self, X):
+        return self.b.predict(self.xgb.DMatrix(X, feature_names=self.feats),
+                              iteration_range=(0, self.b.best_iteration + 1))
+
+
+def _booster(exp: str):
+    d = EXPERIMENTS / exp
+    feats = json.loads((d / "features.json").read_text())
+    if (d / "model.txt").exists():
+        return lgb.Booster(model_file=str(d / "model.txt")), feats
+    return _XGB(d / "model.json", feats), feats
 
 
 SPLIT, TAG = "test", "testall"
@@ -116,7 +134,8 @@ def rescore(country: str, run: Path, stage2x: str) -> None:
     parts = sorted((run / "pass1_feats").glob(f"{country}_p*.parquet"))
     for fp in parts:
         df = pd.read_parquet(fp)
-        df["p2"] = booster.predict(xgb.DMatrix(df[feats].to_numpy(np.float32))).astype(np.float32)
+        df["p2"] = booster.predict(xgb.DMatrix(df[feats].to_numpy(np.float32), feature_names=feats),
+                                   iteration_range=(0, booster.best_iteration + 1)).astype(np.float32)
         df.to_parquet(fp.with_suffix(".partial"), index=False, compression="zstd")
         fp.with_suffix(".partial").replace(fp)
         i = int(fp.stem.split("_p")[1])
@@ -132,12 +151,15 @@ def anchors(country: str, run: Path) -> None:
     print(f"  anchors {country}: {len(h):,} anchor-retrieved pairs", flush=True)
 
 
-def pass2(country: str, run: Path, stage3: str) -> None:
+def pass2(country: str, run: Path, stage3: str, scores: str = "scores") -> None:
     s3m, s3f = _booster(stage3)
-    (run / "scores").mkdir(parents=True, exist_ok=True)
+    need_extra = any(c in s3f for c in EXTRA_COLS)
+    if need_extra:
+        s1_addr = pd.read_parquet(PROCESSED / f"{SPLIT}_s1_{country}.parquet", columns=["code", "addr_norm"]).set_index("code")["addr_norm"]
+    (run / scores).mkdir(parents=True, exist_ok=True)
     hits_all = pd.read_parquet(run / f"hits_test_{country}.parquet")
     for i in range(len(parts_of(country))):
-        sp = run / "scores" / f"{country}_p{i}.parquet"
+        sp = run / scores / f"{country}_p{i}.parquet"
         if sp.exists():
             continue
         t0 = time.time()
@@ -159,6 +181,10 @@ def pass2(country: str, run: Path, stage3: str) -> None:
         cc = df["cand"].to_numpy()
         tx = _texts(SPLIT, country, cc)
         sf = sibling_features(df["s1"].to_numpy(), cc, p2, tx.loc[cc, "name_norm"].to_numpy(), tx.loc[cc, "addr_norm"].to_numpy())
+        if need_extra:
+            s1a = df["s1"].to_numpy()
+            ef = extra_features(s1a, p2, s1_addr.reindex(s1a).to_numpy(), tx.loc[cc, "addr_norm"].to_numpy())
+            sf = pd.concat([sf, ef], axis=1)
         del tx
         df = pd.concat([df.reset_index(drop=True), sf], axis=1)
         for c in s3f:
@@ -172,7 +198,7 @@ def pass2(country: str, run: Path, stage3: str) -> None:
         gc.collect()
 
 
-def write(run: Path, sub_id: str, note: str, from_pass1: bool = False) -> None:
+def write(run: Path, sub_id: str, note: str, from_pass1: bool = False, scores: str = "scores") -> None:
     from .decision import select_sets
     from .inference import enforce_exclusivity
     from .submission import (CAND_HEADER, MATCH_HEADER, OUTPUT, archive, run_official_validator,
@@ -182,7 +208,7 @@ def write(run: Path, sub_id: str, note: str, from_pass1: bool = False) -> None:
         sc = pd.concat([pd.read_parquet(p).rename(columns={"prob": "prob"})
                         for p in sorted((run / "pass1_anchors").glob("*.parquet"))], ignore_index=True)
     else:
-        sc = pd.concat([pd.read_parquet(p) for p in sorted((run / "scores").glob("*.parquet"))], ignore_index=True)
+        sc = pd.concat([pd.read_parquet(p) for p in sorted((run / scores).glob("*.parquet"))], ignore_index=True)
     s1, cand, prob = sc["s1"].to_numpy(), sc["cand"].to_numpy(), sc["prob"].to_numpy()
     live = prob >= 0.01
     a, b, p = s1[live], cand[live], prob[live]
@@ -221,6 +247,7 @@ def main() -> None:
     ap.add_argument("--from-pass1", action="store_true", help="write from stage-2 scores (fallback)")
     ap.add_argument("--part", type=int, default=None, help="pass1: compute only this part (child process)")
     ap.add_argument("--tag", default="testall", help="candidate-file tag")
+    ap.add_argument("--scores", default="scores", help="pass2/write: scores sub-directory of the run")
     args = ap.parse_args()
     global SPLIT, TAG
     SPLIT, TAG = args.split, args.tag
@@ -233,9 +260,9 @@ def main() -> None:
     elif args.step == "anchors":
         anchors(args.country, run)
     elif args.step == "pass2":
-        pass2(args.country, run, args.stage3)
+        pass2(args.country, run, args.stage3, args.scores)
     else:
-        write(run, args.sub_id, args.note, args.from_pass1)
+        write(run, args.sub_id, args.note, args.from_pass1, args.scores)
 
 
 if __name__ == "__main__":

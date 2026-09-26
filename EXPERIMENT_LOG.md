@@ -35,6 +35,8 @@ Blocking experiments report pair recall on 5k India S1 queries against the full 
 | E030s2 | 09-26 04:35 | v3: forward ∪ reverse ∪ key candidates, cheap stage 1, 300k entities | stage 2 only | **0.9722** (60k holdout) / **0.9720** (original 30k); cand recall .9717; oracle .9901; US .9775 / India .9641 | **Champion** |
 | E027 | 09-26 03:40 | Is native-script transliteration deterministic (dictionary-fixable)? | align Indic-script S2/S3 names with S1 names in train GT | 18.2 % of India S2/S3 names Indic; mapping 96.6 % deterministic over 1,347 tokens; test coverage 96.4 % | **Yes → E032** |
 | E030lb | 09-26 04:55 | Loss budget of v3 stage 2 | counterfactual fixes, 60k holdout | blocking .0114 (native-script .0037, empty-addr .0026, other .0051); matcher .0116 (empty-addr .0049, other .0060); FP .0067 | drives E032 + stage 3 |
+| E030s3 | 09-26 15:05 | Stage 3 on v3: GPU cross-fitted p2 → anchors (p2 ≥ 0.9) retrieve top-3 → sibling features | 60k holdout, same decision rule (expF) | **0.97522** vs stage 2 0.97180 (+0.0034); cand recall .9785 (from .9717); oracle .9918; US .9794 / India .9690 | **Champion** (day2_s2 candidate) |
+| E033 | 09-26 15:10 | Do alphanumeric house-number agreement + within-entity number consensus fix the dominant FP/FN pattern? | 11 new stage-3 features (`src/extra_features.py`), same LightGBM | running | — |
 ## Details
 
 ### E001 (failed)
@@ -100,3 +102,14 @@ reranker, not more keys.
   from 551k aligned training pairs only. Applied as a parallel data version (`trainT`/`testT`):
   e.g. `raam maarketting praaivett limittedd` → `ram marketing private limited`;
   1.6 M train+test India names rewritten. Original files untouched (rollback).
+
+### E030 stage 3 / E033 — error sample that motivated the number features (2026-09-26)
+- 30 sampled stage-2 holdout false positives: ~half are generator near-copies of a true record with
+  the house / unit number replaced (`1002→1004`, `72→93C`, `12→14B`, `224→226A`, `A201→A214`,
+  `1A2→1A7`, `56TH→77TH`); alphanumeric tokens are invisible to the digit-only features.
+  ~1/3 belong to another S1 with the same name (often empty address) or the same address.
+- Missed true matches often carry a corrupted number shared by several records of the cluster
+  (`671` in four records vs S1 `471`; `29` in two vs `49`), while a near-copy's number is unique.
+- India training pairs: `anum_c_extra` 0 → 50.7 % positive, 1 → 5.7 %, 2 → 0.7 %, ≥3 → 0 %.
+- France test (label-free look): no postcodes (0.4 % of addresses); names from a small generic
+  vocabulary → address numbers carry most of the evidence there.
