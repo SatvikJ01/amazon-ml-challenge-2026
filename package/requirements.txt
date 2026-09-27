@@ -1,0 +1,30 @@
+# Python 3.12 (laptop 3.12.3, EC2 3.12.14).  Versions = `pip freeze` of the environments that
+# produced the final models and submission (laptop .venv and EC2 .venv agree on every line below).
+#
+# Imported by the final pipeline (src/*, scripts/apply_l2.py, scripts/combine_scores.py):
+lightgbm==4.5.0          # stage 1 / 2 / 3 and the E044 residual (MIT licence)
+numpy==1.26.4
+pandas==2.2.3
+pyarrow==18.1.0          # parquet I/O everywhere
+scipy==1.14.1            # sparse matrices in blocking (src/blocking.py)
+scikit-learn==1.5.2      # HashingVectorizer in blocking (src/blocking.py)
+numba==0.60.0            # expected-F0.5 selection (src/decision.py)
+RapidFuzz==3.10.1        # string similarities (src/features.py, collective.py, level2.py, ...)
+Unidecode==1.3.8         # transliteration in normalisation (src/normalize.py)
+#
+# Transitive dependencies of the above, pinned to the installed versions:
+llvmlite==0.43.0
+joblib==1.4.2
+threadpoolctl==3.7.0
+python-dateutil==2.9.0.post0
+pytz==2026.4
+tzdata==2026.4
+six==1.17.0
+#
+# Not used by the final path, but imported lazily by optional code paths:
+xgboost==2.1.3           # only for `--model xgb` / `infer_v3 rescore` (E032-era models); not needed for E039 + E044
+pytest==8.3.4            # tests/ only
+#
+# Deliberately NOT listed: torch / sentence-transformers / faiss.  They were only needed by an abandoned
+# experimental dense retrieval channel (v4, src/embed_channel.py), which no submitted model used and which
+# is not part of the submission package.
