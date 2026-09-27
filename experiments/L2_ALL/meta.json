@@ -1,0 +1,21 @@
+{
+ "variant": "ALL_nc",
+ "rows": 876477,
+ "rounds": 200,
+ "params": {
+  "objective": "binary",
+  "learning_rate": 0.05,
+  "num_leaves": 63,
+  "min_data_in_leaf": 200,
+  "feature_fraction": 0.8,
+  "bagging_fraction": 0.8,
+  "bagging_freq": 1,
+  "lambda_l2": 1.0,
+  "max_bin": 127,
+  "num_threads": 2,
+  "verbose": -1,
+  "seed": 0
+ },
+ "sub": 0.001,
+ "train": "E039 holdout (180,090 entities), all rows with prob>=1e-3, production features src/level2.py"
+}
