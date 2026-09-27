@@ -18,3 +18,5 @@
 day1_s1 stats: 1,732,544 rows; 107,075 empty (6.2 %); 5.57 M matches (3.21/entity);
 28.8 M candidates (16.6/entity). Per country mean matches / empty rate:
 France 3.27 / 5.3 %, India 3.15 / 6.6 %, US 3.27 / 6.0 %. Official validator: PASS.
+
+**Final package (09-27 22:04 IST):** `counter_clockwise_submission.zip` built by `scripts/make_package.py --team counter_clockwise --sub day3_frdown` (113 files, 302.7 MB; not committed). `output/matching_results.tsv` sha256 `c2f55d39a99097111886b466502107250f80158c972dba9f92e1141aac6a16e8` = the day3_frdown file (LB 0.977835); official validator PASS.
