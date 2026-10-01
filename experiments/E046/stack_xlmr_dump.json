@@ -1,0 +1,44 @@
+[
+ {
+  "tag": "xlmr_dump",
+  "it": 200,
+  "rule": "full",
+  "F": 0.987218,
+  "gain": 0.002034,
+  "wgain": 0.002181,
+  "wgain_US": 0.001959,
+  "wgain_India": 0.002512,
+  "se": 8.4e-05,
+  "gain_India": 0.002334,
+  "gain_US": 0.001834,
+  "changed": 3402
+ },
+ {
+  "tag": "xlmr_dump",
+  "it": 200,
+  "rule": "US_down",
+  "F": 0.986515,
+  "gain": 0.001331,
+  "wgain": 0.001475,
+  "wgain_US": 0.000781,
+  "wgain_India": 0.002512,
+  "se": 7e-05,
+  "gain_India": 0.002334,
+  "gain_US": 0.000659,
+  "changed": 1815
+ },
+ {
+  "tag": "xlmr_dump",
+  "it": 200,
+  "rule": "down",
+  "F": 0.986018,
+  "gain": 0.000834,
+  "wgain": 0.000981,
+  "wgain_US": 0.000781,
+  "wgain_India": 0.001279,
+  "se": 5.7e-05,
+  "gain_India": 0.001094,
+  "gain_US": 0.000659,
+  "changed": 755
+ }
+]

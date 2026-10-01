@@ -1,0 +1,44 @@
+[
+ {
+  "tag": "ep2",
+  "it": 400,
+  "rule": "full",
+  "F": 0.987717,
+  "gain": 0.002533,
+  "wgain": 0.00273,
+  "wgain_US": 0.002517,
+  "wgain_India": 0.003049,
+  "se": 8.9e-05,
+  "gain_India": 0.002846,
+  "gain_US": 0.002324,
+  "changed": 3884
+ },
+ {
+  "tag": "ep2",
+  "it": 400,
+  "rule": "US_down",
+  "F": 0.986827,
+  "gain": 0.001643,
+  "wgain": 0.001814,
+  "wgain_US": 0.000987,
+  "wgain_India": 0.003049,
+  "se": 7.4e-05,
+  "gain_India": 0.002846,
+  "gain_US": 0.000838,
+  "changed": 1998
+ },
+ {
+  "tag": "ep2",
+  "it": 400,
+  "rule": "down",
+  "F": 0.986217,
+  "gain": 0.001033,
+  "wgain": 0.001202,
+  "wgain_US": 0.000987,
+  "wgain_India": 0.001523,
+  "se": 6e-05,
+  "gain_India": 0.001323,
+  "gain_US": 0.000838,
+  "changed": 799
+ }
+]

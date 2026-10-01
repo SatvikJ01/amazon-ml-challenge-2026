@@ -1,0 +1,101 @@
+[
+ {
+  "tag": "el_noclaim",
+  "it": 100,
+  "rule": "full",
+  "F": 0.986499,
+  "gain": 0.001315,
+  "se": 7.7e-05,
+  "gain_India": 0.001492,
+  "gain_US": 0.001196,
+  "changed": 2824
+ },
+ {
+  "tag": "el_noclaim",
+  "it": 100,
+  "rule": "US_down",
+  "F": 0.986017,
+  "gain": 0.000833,
+  "se": 6.3e-05,
+  "gain_India": 0.001492,
+  "gain_US": 0.000392,
+  "changed": 1572
+ },
+ {
+  "tag": "el_noclaim",
+  "it": 100,
+  "rule": "down",
+  "F": 0.985742,
+  "gain": 0.000558,
+  "se": 5e-05,
+  "gain_India": 0.000806,
+  "gain_US": 0.000392,
+  "changed": 674
+ },
+ {
+  "tag": "el_noclaim",
+  "it": 200,
+  "rule": "full",
+  "F": 0.986499,
+  "gain": 0.001315,
+  "se": 7.7e-05,
+  "gain_India": 0.001513,
+  "gain_US": 0.001182,
+  "changed": 2900
+ },
+ {
+  "tag": "el_noclaim",
+  "it": 200,
+  "rule": "US_down",
+  "F": 0.986033,
+  "gain": 0.000849,
+  "se": 6.4e-05,
+  "gain_India": 0.001513,
+  "gain_US": 0.000404,
+  "changed": 1619
+ },
+ {
+  "tag": "el_noclaim",
+  "it": 200,
+  "rule": "down",
+  "F": 0.985739,
+  "gain": 0.000555,
+  "se": 5e-05,
+  "gain_India": 0.000781,
+  "gain_US": 0.000404,
+  "changed": 703
+ },
+ {
+  "tag": "el_noclaim",
+  "it": 400,
+  "rule": "full",
+  "F": 0.986519,
+  "gain": 0.001335,
+  "se": 7.9e-05,
+  "gain_India": 0.001515,
+  "gain_US": 0.001214,
+  "changed": 3030
+ },
+ {
+  "tag": "el_noclaim",
+  "it": 400,
+  "rule": "US_down",
+  "F": 0.986045,
+  "gain": 0.000861,
+  "se": 6.6e-05,
+  "gain_India": 0.001515,
+  "gain_US": 0.000422,
+  "changed": 1708
+ },
+ {
+  "tag": "el_noclaim",
+  "it": 400,
+  "rule": "down",
+  "F": 0.985758,
+  "gain": 0.000574,
+  "se": 5.2e-05,
+  "gain_India": 0.000801,
+  "gain_US": 0.000422,
+  "changed": 741
+ }
+]

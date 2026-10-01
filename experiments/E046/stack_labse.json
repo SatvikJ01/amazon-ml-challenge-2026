@@ -1,0 +1,44 @@
+[
+ {
+  "tag": "labse",
+  "it": 400,
+  "rule": "full",
+  "F": 0.987428,
+  "gain": 0.002244,
+  "wgain": 0.002414,
+  "wgain_US": 0.002185,
+  "wgain_India": 0.002755,
+  "se": 8.8e-05,
+  "gain_India": 0.002573,
+  "gain_US": 0.002023,
+  "changed": 3698
+ },
+ {
+  "tag": "labse",
+  "it": 400,
+  "rule": "US_down",
+  "F": 0.986646,
+  "gain": 0.001462,
+  "wgain": 0.001614,
+  "wgain_US": 0.000849,
+  "wgain_India": 0.002755,
+  "se": 7.3e-05,
+  "gain_India": 0.002573,
+  "gain_US": 0.000718,
+  "changed": 1949
+ },
+ {
+  "tag": "labse",
+  "it": 400,
+  "rule": "down",
+  "F": 0.986114,
+  "gain": 0.00093,
+  "wgain": 0.001084,
+  "wgain_US": 0.000849,
+  "wgain_India": 0.001435,
+  "se": 5.9e-05,
+  "gain_India": 0.001247,
+  "gain_US": 0.000718,
+  "changed": 796
+ }
+]

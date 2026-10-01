@@ -180,3 +180,61 @@ Then: E039 test inference on the laptop (~5 h) if it beats E032.
 - Near-identical model families do not ensemble (corr 0.999).
 - Every heavy job needs a memory cap, streaming I/O, per-part checkpoints and a watcher that reports
   failures as well as success.
+
+## 11. E046 — pretrained text cross-encoders (09-28, after the deadline)
+
+**Idea.** A pretrained transformer reads both records as one sequence
+(`S1 name | S1 address </s></s> candidate name | candidate address`), so every token of one record can
+attend to every token of the other; it is fine-tuned end to end as a binary "same business?" classifier.
+It sees the raw strings (typos, casing, `<NULL>`, reordered address parts, native script), which our
+hand-built similarity features only summarise.
+
+**Where it is applied.** Only the band 1e-3 ≤ pf < 0.999 of the shipped probability: the oracle says the
+whole recoverable F0.5 is there (0.98518 → 0.99399 if those 323k holdout pairs were perfect; pairs outside
+the band are worth < 0.0003). Test band: 3.74M pairs (US 2.4, India 1.7, France 3.1 per entity).
+
+**How it is combined.** A LightGBM residual on the holdout band, `init_score = logit(pf)`, features = the
+CE logit(s) + within-entity CE context (rank, best other, gap) + pf context; 2-fold entity CV on the holdout
+for evaluation, the whole holdout for test. Claimant (same-candidate) features were dropped: the holdout
+holds only ~8 % of all S1, the test 100 %, so their distribution shifts.
+
+**Results so far.**
+- ELECTRA-small (14M, English, 600k pairs, 14 min on the laptop GPU): band AUC 0.970 (pf 0.9835), yet
+  stacked **+0.0013** holdout F0.5 (control without CE +0.0001): the CE is weaker alone but complementary.
+- What it catches (holdout examples): distractor names one edit away with the identical address
+  (`Chandraksh` vs `Chandrakoro`), neighbour house numbers (6622 vs 6629A), wrong city; and it rescues true
+  matches with OCR-style noise (`8irnbaum`/`Birnbaum`, `Westem Hovnnaann`/`Western Hovnanian`).
+- **Unseen country (LOCO, France proxy):** CE trained on US only → India band AUC 0.79 (ELECTRA) / 0.77
+  (multilingual e5-small) vs 0.97 in-country; stacked it *hurts* India (−0.0021 / −0.0025). The stacker
+  itself transfers (+0.0014 on India from a US-only stacker when the CE saw India). ⇒ **no CE correction on
+  France**; the CE only helps countries it was trained on.
+- Test pool composition (record counts): unowned decoys per S1 ×1.9 in test, other businesses ×0.5 (US);
+  weighting the stacker's negatives accordingly did not help (E046c), and the CE gain holds on a
+  decoy-weighted holdout metric.
+
+**Model choice (research 09-28, licences checked on the HF cards).** MIT/Apache, ≤ 8B, T4 (fp16, no bf16,
+no FlashAttention-2): mDeBERTa-v3-base (MIT) is the best value; bge-reranker-v2-m3 (Apache-2.0, XLM-R-large
+reranker) the strongest cross-lingual option; XLM-R-large + mDeBERTa-v3-base won Kaggle Foursquare Location
+Matching (multilingual POI name/address matching). 7B decoders (Qwen2.5-7B, Mistral-7B, Apache-2.0) need
+18–30 h of pure inference for 4M pairs on 2×T4 — not feasible. Excluded by licence: Jina rerankers,
+Jellyfish (CC-BY-NC), Qwen2.5-3B (research licence); mmBERT uses the Gemma tokenizer (licence caveat).
+
+**Kaggle runs.** `e046-ce`: XLM-R-base (GPU0) + mDeBERTa-v3-base (GPU1), 2.05M pairs, 1 epoch, fp16.
+`e046-ce-large`: bge-reranker-v2-m3 on each GPU, bagged halves (entity parity), frozen word embeddings,
+lr 1e-5. Data = private Kaggle dataset `e046-ce-pairs` (text pairs only).
+
+**Final E046 numbers (09-28 14:50).** Band AUC: mDeBERTa-v3-base 0.9813, LaBSE 0.9807, XLM-R-base 0.9795,
+bge-reranker-v2-m3 halves 0.9784/0.9782 (time-capped at ~0.85M pairs each), ELECTRA-small 0.9764 (pf 0.9835).
+Best stack = mDeBERTa + LaBSE + 10 pairwise stage-3 features: holdout 0.985184 → **0.987643 (+0.00246;
+India +0.0028, US +0.0022)**; more models add nothing. Lessons: data volume beat model size on a T4 budget;
+LaBSE (translation-pair pretraining, frozen embeddings) was the best value (75 min); mDeBERTa checkpoints load
+as fp16 → cast to fp32 before AMP training. Candidates day4_mdl_C (US full) / day4_mdl_D (US down-only),
+France raw in both; expected LB ≈ 0.9795.
+
+## 12. E047 — dense-retrieval rescue (10-02)
+Fine-tuned multilingual-e5-small bi-encoder (2.35M ground-truth pairs, 55 min on a T4) + exact GPU kNN in both
+directions per country; pairs already in our candidate set are dropped with a Bloom filter; the new pairs are scored by
+the LaBSE cross-encoder and a LightGBM rescue model. The new holdout pairs contain **76 % of the true matches our
+lexical retrieval missed**; holdout F0.5 0.987717 → **0.991184 (+0.0035)**. This is the component the published
+0.988–0.990 solutions shared and we lacked: after the cross-encoders, retrieval recall was the largest remaining loss.
+Post-deadline total: 0.985184 → 0.991184 on the holdout (France unchanged).

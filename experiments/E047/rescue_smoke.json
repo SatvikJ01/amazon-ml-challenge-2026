@@ -1,0 +1,22 @@
+[
+ {
+  "scale": 0.5,
+  "F_base": 0.987643,
+  "F": 0.987643,
+  "gain": 0.0,
+  "se": 0.0,
+  "gain_India": 0.0,
+  "gain_US": 0.0,
+  "changed": 0
+ },
+ {
+  "scale": 1.0,
+  "F_base": 0.987643,
+  "F": 0.987643,
+  "gain": 0.0,
+  "se": 0.0,
+  "gain_India": 0.0,
+  "gain_US": 0.0,
+  "changed": 0
+ }
+]

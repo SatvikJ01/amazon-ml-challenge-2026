@@ -1,0 +1,134 @@
+[
+ {
+  "tag": "el_ce",
+  "it": 100,
+  "rule": "full",
+  "F": 0.986457,
+  "gain": 0.001273,
+  "se": 7.7e-05,
+  "gain_India": 0.00149,
+  "gain_US": 0.001127,
+  "changed": 2784
+ },
+ {
+  "tag": "el_ce",
+  "it": 100,
+  "rule": "US_down",
+  "F": 0.986009,
+  "gain": 0.000825,
+  "se": 6.3e-05,
+  "gain_India": 0.00149,
+  "gain_US": 0.00038,
+  "changed": 1509
+ },
+ {
+  "tag": "el_ce",
+  "it": 100,
+  "rule": "down",
+  "F": 0.985728,
+  "gain": 0.000543,
+  "se": 4.9e-05,
+  "gain_India": 0.000788,
+  "gain_US": 0.00038,
+  "changed": 641
+ },
+ {
+  "tag": "el_ce",
+  "it": 200,
+  "rule": "full",
+  "F": 0.986453,
+  "gain": 0.001269,
+  "se": 7.7e-05,
+  "gain_India": 0.001502,
+  "gain_US": 0.001114,
+  "changed": 2820
+ },
+ {
+  "tag": "el_ce",
+  "it": 200,
+  "rule": "US_down",
+  "F": 0.986013,
+  "gain": 0.000829,
+  "se": 6.3e-05,
+  "gain_India": 0.001502,
+  "gain_US": 0.000379,
+  "changed": 1543
+ },
+ {
+  "tag": "el_ce",
+  "it": 200,
+  "rule": "down",
+  "F": 0.985722,
+  "gain": 0.000538,
+  "se": 4.9e-05,
+  "gain_India": 0.000777,
+  "gain_US": 0.000379,
+  "changed": 656
+ },
+ {
+  "tag": "el_ce",
+  "it": 400,
+  "rule": "full",
+  "F": 0.986426,
+  "gain": 0.001242,
+  "se": 7.8e-05,
+  "gain_India": 0.001463,
+  "gain_US": 0.001094,
+  "changed": 2862
+ },
+ {
+  "tag": "el_ce",
+  "it": 400,
+  "rule": "US_down",
+  "F": 0.985978,
+  "gain": 0.000794,
+  "se": 6.4e-05,
+  "gain_India": 0.001463,
+  "gain_US": 0.000345,
+  "changed": 1577
+ },
+ {
+  "tag": "el_ce",
+  "it": 400,
+  "rule": "down",
+  "F": 0.985697,
+  "gain": 0.000513,
+  "se": 4.9e-05,
+  "gain_India": 0.000763,
+  "gain_US": 0.000345,
+  "changed": 688
+ },
+ {
+  "tag": "el_ce",
+  "it": 800,
+  "rule": "full",
+  "F": 0.986405,
+  "gain": 0.001221,
+  "se": 7.8e-05,
+  "gain_India": 0.001451,
+  "gain_US": 0.001067,
+  "changed": 2887
+ },
+ {
+  "tag": "el_ce",
+  "it": 800,
+  "rule": "US_down",
+  "F": 0.985959,
+  "gain": 0.000774,
+  "se": 6.4e-05,
+  "gain_India": 0.001451,
+  "gain_US": 0.000322,
+  "changed": 1596
+ },
+ {
+  "tag": "el_ce",
+  "it": 800,
+  "rule": "down",
+  "F": 0.985677,
+  "gain": 0.000493,
+  "se": 4.9e-05,
+  "gain_India": 0.00075,
+  "gain_US": 0.000322,
+  "changed": 720
+ }
+]
