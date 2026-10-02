@@ -3,13 +3,13 @@
 **Team Name:** {{TEAM_NAME}}  
 **Team Members:** {{TEAM_MEMBERS}}  
 **Final submission:** `{{FINAL_SUB_ID}}` ({{FINAL_RULE}})  
-**Submission Date:** 2026-09-27
+**Submission Date:** 2026-10-02
 
 ---
 
 ## 1. Executive Summary
 
-We built a blocking-plus-classifier cascade. The candidate set comes from three complementary retrieval channels: rare-term IDF top-30, reverse top-3 and exact capped keys. For India, a native-script dictionary learned from the training ground truth is applied first. A cheap LightGBM (stage 1) prunes the union, and a pairwise LightGBM (stage 2) scores the survivors. A **collective** stage 3 then uses each entity's own predicted matches ("anchors") in two ways: to retrieve missed records and as sibling evidence. A residual level-2 LightGBM corrects stage 3. The last step is a per-entity **expected-F0.5-optimal** decision with one-owner exclusivity. Every change was chosen from a counterfactual loss budget on a held-out split that is scored exactly like the leaderboard. The holdout macro F0.5 rose from 0.9578 (first model) to **0.985458** for the best holdout model (the final submission `{{FINAL_SUB_ID}}` holds {{FINAL_HOLDOUT}} on the holdout). The public LB rose from 0.952 (first submission) to {{BEST_LB}} ({{BEST_LB_SUB}}, the best score confirmed when this package was built); the final file `{{FINAL_SUB_ID}}` scores {{FINAL_LB}}. The final system uses no external data, no pre-trained or neural model and no API calls. All learned models are LightGBM (MIT licence), trained from scratch.
+We built a blocking-plus-classifier cascade. The candidate set comes from three complementary retrieval channels: rare-term IDF top-30, reverse top-3 and exact capped keys. For India, a native-script dictionary learned from the training ground truth is applied first. A cheap LightGBM (stage 1) prunes the union, and a pairwise LightGBM (stage 2) scores the survivors. A **collective** stage 3 then uses each entity's own predicted matches ("anchors") in two ways: to retrieve missed records and as sibling evidence. A residual level-2 LightGBM corrects stage 3. Two fine-tuned pre-trained multilingual **cross-encoders** (mDeBERTa-v3-base, MIT; LaBSE, Apache-2.0) then re-score the uncertain pairs through a residual stacker. A fine-tuned multilingual-e5-small **bi-encoder** (MIT) adds a dense kNN retrieval channel, and a rescue model judges its new pairs. The last step is a per-entity **expected-F0.5-optimal** decision with one-owner exclusivity. Every change was chosen from a counterfactual loss budget on a held-out split that is scored exactly like the leaderboard. The holdout macro F0.5 rose from 0.9578 (first model) to 0.985458 with the LightGBM cascade (E044). The cross-encoders (E046) and the dense rescue (E047) raised it to **0.991184**; the final submission `{{FINAL_SUB_ID}}` holds {{FINAL_HOLDOUT}}. The public LB rose from 0.952 (first submission) to {{BEST_LB}} ({{BEST_LB_SUB}}, the best score confirmed when this package was built); the final file `{{FINAL_SUB_ID}}` scores {{FINAL_LB}}. The system uses no external data and makes no API calls. The only external artefacts are three public pre-trained checkpoints (MIT / Apache-2.0, 118M–471M parameters, far below the 8B limit). They are fine-tuned on the provided training data only. All other learned models are LightGBM (MIT licence), trained from scratch.
 
 ---
 
@@ -82,8 +82,9 @@ per (country, target source S2|S3):
 | Reverse | Every S2/S3 record retrieves its top-3 S1 (no depth limit per S1) | 29,906,150 |
 | Exact keys | Name-token skeleton × one of the first two canonical address numbers, plus adjacent skeleton bigrams. A key is used only if it occurs in ≤ 10 S1 and ≤ 60 target records. | 48,017,895 |
 | Anchors | Each predicted match (p2 ≥ 0.9) queries the S2 and S3 pools and keeps its top-3 neighbours | 17,598,114 (6,692,150 new) |
+| Dense (E047, India/US) | Fine-tuned multilingual-e5-small bi-encoder, exact kNN by cosine within the country in both directions (each S1 → top-10 records; each record → top-2 S1). Only pairs not already in the set are kept, with forward rank < 5 or reverse rank < 2. | 8,565,902 new (US 3,639,932 · India 4,925,970) |
 
-- **Candidate pairs generated:** The union holds 149,337,340 pairs (86.2 per S1). Stage 1 uses 20 cheap features: channel scores, ranks and membership, plus competition features computed on the full forward table. It was trained with 25 % negative sampling (weighted) and cross-fitted, and it keeps 36,366,773 pairs (24.4 %). On the training data it keeps 22.9 % of pairs and 99.85 % of positives (E039_stage1), at a cost of −0.00004 F0.5 when the same pruning rule was introduced (E012, v1 stage 1). Adding the anchor pairs gives **43,058,923 pairs in `candidate_pairs.tsv`, 24.85 per S1 entity** (France 26.68 · India 25.22 · US 23.69). That is 6.4 × 10⁻⁶ of all within-country pairs, a reduction ratio of 0.9999936. This is exactly the set the stage-3 and residual models score.
+- **Candidate pairs generated:** The union holds 149,337,340 pairs (86.2 per S1). Stage 1 uses 20 cheap features: channel scores, ranks and membership, plus competition features computed on the full forward table. It was trained with 25 % negative sampling (weighted) and cross-fitted, and it keeps 36,366,773 pairs (24.4 %). On the training data it keeps 22.9 % of pairs and 99.85 % of positives (E039_stage1), at a cost of −0.00004 F0.5 when the same pruning rule was introduced (E012, v1 stage 1). Adding the anchor pairs gives **43,058,923 pairs in `candidate_pairs.tsv`, 24.85 per S1 entity** (France 26.68 · India 25.22 · US 23.69). That is 6.4 × 10⁻⁶ of all within-country pairs, a reduction ratio of 0.9999936. This is exactly the set the stage-3 and residual models score. In the day4_final_* files the dense channel adds 8,565,902 pairs, which gives 51,624,825 candidates (29.80 per S1).
 - **How we ensured true matches were not lost:** Most blocking misses were *easy* pairs pushed out of the top-30 by look-alikes with generic names (E025). We added channels without a per-S1 depth limit and then used the entity's own predictions to retrieve its siblings.
 
 | Step | Recall evidence |
@@ -95,6 +96,7 @@ per (country, target source S2|S3):
 | + predicted anchors | 0.9717 → 0.9785, oracle 0.9918 (E030s3) |
 | + native-script dictionary | 0.9785 → 0.9821, oracle 0.9939; native-script misses 886 → 106 (E032) |
 | **Final E039, 180k holdout** | before anchors 0.97802 (18.71 candidates/S1); **after anchors 0.98199, oracle F0.5 0.99409** (23.49 candidates/S1) |
+| + dense bi-encoder channel (E047, 180k holdout) | its 864,025 new pairs (4.8/S1) contain **8,576 of the 11,227 missed true matches (76 %)** |
 
 ---
 
@@ -112,6 +114,8 @@ All stages are LightGBM binary classifiers. Stages 2 and 3 use lr 0.05, 127 leav
 | Stage 2 | 73 pairwise and context features | p2 (0.97741 alone, 180k holdout) |
 | Stage 3 | 114: stage-2 features + p2 and its rank + 4 anchor + 7 sibling + 11 number + 8 name/shared-address + 9 distance/empty-address/duplication features | p3 (0.98421) |
 | Residual (E044) | 204: p3 + 61 entity-context + 8 edit-type + 21 empty-address/tie features + the other 113 stage-3 features | p = σ(logit p3 + f(x)), trained on India/US; 600 rounds, 63 leaves; applied as in {{FINAL_SUB_ID}} |
+| Cross-encoder stacker (E046) | 22: logit p and p3, the two cross-encoder logits and their mean, the pair's CE rank / gap / best other CE within the entity, the entity's band size, best other p and number of pairs ≥ 0.999, source, 10 pairwise stage-3 features | p' = σ(logit p + g(x)) on the band 1e-3 ≤ p < 0.999; 400 rounds, 31 leaves; India/US only |
+| Rescue (E047) | 11: bi-encoder cosine, forward / reverse rank, LaBSE logit, its rank and the cosine rank among the entity's new pairs, number of new pairs, the entity's best current p, number of pairs ≥ 0.5 and their sum, source | probability of each new dense pair; 300 rounds; India/US only |
 
 **Features used:**
 - **Name features:**
@@ -162,6 +166,30 @@ Evidence on the E039 holdout (180k):
 - The layer is already near Bayes-optimal: a GFM decision gave −0.00015, recalibration ±0.00002 and a miss-aware oracle +0.00012 (E042r).
 - Adding a constant "missed matches" term hurts: 0.908 (E010) and 0.9306 (E039).
 
+**Pre-trained text models (E046, E047).**
+
+- **Cross-encoders.** Each pair is read as one sequence: `S1 name | address [| transliteration]` and `candidate name | address [| translit]`.
+  - **Training.** They are fine-tuned with binary cross-entropy on 2.05M training-entity pairs: the band 1e-3 ≤ cross-fitted p3 < 0.999 plus 30 % of the other pairs. The first epoch uses lr 2e-5, batch 64 and fp16 on Kaggle 2× T4; a second epoch continues at lr 1e-5.
+  - **Band AUC on the holdout** (the LightGBM p alone: 0.9835):
+
+    | Model | AUC |
+    |---|---|
+    | mDeBERTa-v3-base (2 epochs) | 0.9823 |
+    | LaBSE (2 epochs, frozen word embeddings) | 0.9814 |
+    | XLM-R-base | 0.9795 |
+    | bge-reranker-v2-m3 (XLM-R-large; time-capped at ~0.85M pairs per half) | 0.9784 |
+    | ELECTRA-small | 0.9764 |
+
+    Two diverse base models were as good as all six together.
+- **Dense rescue.** multilingual-e5-small is fine-tuned as a bi-encoder: symmetric InfoNCE with in-batch same-country negatives, temperature 0.05, frozen word embeddings, 2.35M ground-truth pairs of the non-holdout training entities, 55 min on a T4.
+  - **Retrieval.** Exact GPU kNN searches both directions within each country. A Bloom filter removes the pairs that are already candidates.
+  - **Scoring.** The LaBSE cross-encoder scores the new pairs. The rescue LightGBM turns its logit and the retrieval signals into a probability, and the union goes through the usual decision. The rescue model has AUC 0.9985 on the new holdout pairs and precision 0.93 at p ≥ 0.5.
+- **Leakage control.**
+  - The cross-encoders and the bi-encoder never saw a holdout entity.
+  - The stacker and the rescue model are evaluated with 2-fold entity cross-validation on the holdout; the shipped versions are trained on the whole holdout.
+  - Neither uses same-candidate claimant features: the holdout holds 8 % of all S1 and the test 100 %, so those features would shift.
+- **France.** In a leave-one-country-out test, a cross-encoder trained on US pairs only and stacked on India **lowered** India by 0.0021 (ELECTRA-small) and 0.0025 (multilingual e5-small). When the cross-encoder had seen India, the same US-trained stacker gained +0.0014. The neural stages are therefore applied to India and the US only, and France keeps its day3_frdown probabilities.
+
 ---
 
 ## 5. Results & Error Analysis
@@ -170,6 +198,7 @@ Evidence on the E039 holdout (180k):
   - Holdout (180,090 entities): **0.985458** for E044 on India + US (SE 0.00007), +0.00123 over E039 on the same entities (0.98423; E039's own report gives 0.98421 on 180,091). The 600-round checkpoint was chosen from 200/400/600/800 evaluated on this holdout (0.985327–0.985504). 600 was preferred over 800 because the mean logit shift kept growing with rounds.
   - By country: India 0.98422, US 0.98629.
   - By number of true matches: 0 → 0.98837, 1 → 0.9472, 2–3 → 0.98552, 4+ → 0.98934.
+  - With the pre-trained models (same 180,090 holdout entities): E046 cross-encoder stacker 0.987717 (+0.00253; India +0.0028, US +0.0023), and with the E047 dense rescue **0.991184** (+0.00347 more; India +0.0048, US +0.0026; SE 0.00009).
   - Public LB: best confirmed {{BEST_LB}} ({{BEST_LB_SUB}}); day3_l2b_india 0.976505, day3_l2b 0.975885, day3_e039 0.975775, day3_e032 0.97385. The final file is **`{{FINAL_SUB_ID}}`** (holdout {{FINAL_HOLDOUT}}), with LB **{{FINAL_LB}}**.
 
 | Holdout progression | Change | F0.5 |
@@ -182,6 +211,8 @@ Evidence on the E039 holdout (180k):
 | E032 | native-script dictionary | 0.98265 |
 | E039 | 3× training entities (900k) | 0.98402 (same 60k) / 0.98421 (180k) |
 | E042c / **E044** | residual level-2: holdout 5-fold CV / trained on 702k training entities | 0.98506 / **0.985458** |
+| E046 | + fine-tuned mDeBERTa-v3-base + LaBSE cross-encoders, residual stacker on the band (shipped rule: E044 US down-only, 0.985184 before) | 0.987643 (1 epoch) / 0.987717 (2 epochs) |
+| **E047** | + fine-tuned e5-small dense retrieval, rescue model | **0.991184** |
 
 The holdout had 30k entities for E010–E023B, 60k for E030–E032 and 180k from E039 on. Each gain was measured on identical entities.
 
@@ -197,6 +228,8 @@ The holdout had 30k entities for E010–E023B, 60k for E030–E032 and 180k from
 | day3_l2b_india | E039 + E044 residual on India only | expF + exclusivity | 0.98482 (India +0.00147 per India entity) | **0.976505** |
 | day3_usdown | E039 + E044: India full, US down-only min(p3, p), France raw | expF + exclusivity | 0.98518 (+0.00095) | {{LB_day3_usdown}} |
 | day3_frdown | day3_usdown + E044 down-only on France | expF + exclusivity | 0.98518 (France unvalidatable) | {{LB_day3_frdown}} |
+| day4_final_C | day3_frdown + E046 stacker (full on India/US) + E047 rescue (India/US) | expF + exclusivity | 0.991184 | {{LB_day4_final_C}} |
+| day4_final_D | as day4_final_C with the stacker down-only on US | expF + exclusivity | 0.98683 + the rescue | {{LB_day4_final_D}} |
 
 The file in this package is **`{{FINAL_SUB_ID}}`**, public LB {{FINAL_LB}}.
 
@@ -227,12 +260,15 @@ The file in this package is **`{{FINAL_SUB_ID}}`**, public LB {{FINAL_LB}}.
 | Seed averaging / second anchor round / two-hop retrieval (E042r, E042d) | ≈ +0.0001 / ≤ +0.00008 / +0.00021 but fragile, not deployed |
 | Self-training for the unseen country (US → India proxy, E043) | −0.0011 / −0.0016, despite 98.9–99.4 % pseudo-label accuracy |
 | Full E044 residual on US test entities (day3_l2b) | holdout +0.00107 per US entity, LB −0.00062 overall (vs day3_l2b_india); upward moves admitted test distractors |
+| More cross-encoders in the stack (XLM-R-base, bge-reranker-v2-m3, ELECTRA-small with mDeBERTa + LaBSE) / same-candidate claimant features (E046f, E046a) | +0.00001 / +0.00004 (not used) |
+| Weighting the stacker's negatives for the test pool composition (×1.9 decoys, E046c) | −0.00001 on a decoy-weighted holdout metric |
+| A 7B decoder LLM as the matcher | not run: 18–30 GPU-hours of inference for 4M pairs on 2× T4 |
 
 ---
 
 ## 6. Conclusion
 
-A recall-first, multi-channel candidate set feeds a cascade whose third stage reasons over each entity's own predicted matches. This took macro F0.5 from 0.9578 to 0.985458 on the holdout, while keeping only 24.85 candidates per S1 on test (holdout oracle ceiling 0.994). Every accepted gain came from sampling errors and pricing them in a counterfactual loss budget. Structural changes paid off (sibling anchors, generator-aware number and name features, the native-script dictionary). Model-family ensembles and more similarity channels did not. The remaining loss is dominated by empty-address records whose evidence is provably tied, and by France, the one country with no labels, where `{{FINAL_SUB_ID}}` uses {{FINAL_FRANCE}}. The final file `{{FINAL_SUB_ID}}` ({{FINAL_RULE}}) holds {{FINAL_HOLDOUT}} on the holdout and scores {{FINAL_LB}} on the public LB. The one lesson the leaderboard added: a correction validated on the labelled countries can still fail under test distribution shift (the US residual), so after that feedback the US correction was restricted (the India-only file, and down-only variants that can only remove matches).
+A recall-first, multi-channel candidate set feeds a cascade whose third stage reasons over each entity's own predicted matches. With LightGBM alone this took macro F0.5 from 0.9578 to 0.985458 on the holdout, with 24.85 candidates per S1 on test (holdout oracle ceiling 0.994). Fine-tuned pre-trained cross-encoders on the uncertain pairs added +0.0025. A fine-tuned dense bi-encoder retrieval channel then attacked the largest remaining loss, retrieval misses (0.0059), and added +0.0035, for **0.991184**. Every accepted gain came from sampling errors and pricing them in a counterfactual loss budget. Structural changes paid off (sibling anchors, generator-aware number and name features, the native-script dictionary). Model-family ensembles and more similarity channels did not. The remaining loss is dominated by empty-address records whose evidence is provably tied, and by France, the one country with no labels, where `{{FINAL_SUB_ID}}` uses {{FINAL_FRANCE}}. The final file `{{FINAL_SUB_ID}}` ({{FINAL_RULE}}) holds {{FINAL_HOLDOUT}} on the holdout and scores {{FINAL_LB}} on the public LB. The one lesson the leaderboard added: a correction validated on the labelled countries can still fail under test distribution shift (the US residual), so after that feedback the US correction was restricted (the India-only file, and down-only variants that can only remove matches).
 
 ---
 
@@ -248,12 +284,14 @@ A recall-first, multi-channel candidate set feeds a cascade whose third stage re
 | Blocking | `candidates --topk 30`; `candidates --topk 3 --reverse`; `key_channel --max-s1 10 --max-t 60` (per country and source) | `blocking.py`, `candidates.py`, `key_channel.py` |
 | Training (E039) | `v3 s1data` → `stage1 --v3 --neg-frac 0.25` → `v3 s2data` → `train` (stage 2) → `collective oof --model lgb` / `build` → `anchor_pass retrieve` / `build` → `patch_extra --sets num,name,ctx` → `train` (stage 3); see `scripts/aws/run_e039.sh` | `v3.py`, `stage1.py`, `features.py`, `train.py`, `collective.py`, `anchor_pass.py`, `extra_features{,2,3}.py` |
 | Residual (E044) | `python -m src.l2_train crossfit` → `features` → `holdout` → `train` (600 rounds) → `finalize` → `experiments/L2_E044/` (repo port of the EC2 research scripts crossfit.py / feat_train.py / train_e044.py / finalize_e044.py; folds, seeds, parameters and column order unchanged) | `l2_train.py`, `level2.py` |
+| Neural stages (E046, E047) | `ce_data holdout` / `train` / `test` / `texts` → Kaggle `kaggle/e046_ce/ce_kernel_mdl.py` + `ce_kernel_ep2.py` → `ce_stack holdout` / `test --model-out` → `dense_prep` → Kaggle `kaggle/e047_dense/dense_kernel.py` → `dense_rescue holdout` / `test --model-out`; packaged route: `ce_stack test --model-in experiments/E046_final/stacker.txt`, `dense_rescue test --model-in experiments/E047_final/rescue.txt` (README step 9) | `ce_data.py`, `ce_stack.py`, `dense_prep.py`, `dense_rescue.py`, `kaggle/` |
 | Test → output | `infer_v3 pass1` / `anchors` / `pass2` (`scripts/run_e039_test.sh`) → `scripts/apply_l2.py --model-dir experiments/L2_E044` → per-country rule: day3_l2b = `scores_l2b`; day3_l2b_india = `scores_l2b_in`; day3_usdown / day3_frdown = `scripts/combine_scores.py --rule India=full US=down France=raw\|down` → `infer_v3 write --scores {{FINAL_SCORES}} --sub-id {{FINAL_SUB_ID}}` (README step 7 table) | `infer_v3.py`, `decision.py`, `inference.py`, `submission.py`, `scripts/apply_l2.py`, `scripts/combine_scores.py` |
 
 The write step checks both files with our own streamed verifier (headers, one row per S1, S2/S3 ids only, no duplicates, matches ⊆ candidates) and runs the organisers' validator on `matching_results.tsv`: PASS for every candidate final (day3_l2b, day3_l2b_india, day3_usdown, day3_frdown). The organisers' candidate-file check is skipped because it loads all 43 M ids into Python sets, which its own docstring warns about. The package builder repeats the subset check on the packaged files.
 
 **Compute:**
 - Training ran on an 8-vCPU / 61 GB CPU machine: stage 2 in 1,793 s and stage 3 in 1,539 s (E039 report.json).
+- Neural stages ran on Kaggle 2× T4 (16 GB, fp16): cross-encoders 2.9 h (mDeBERTa) and 1.2 h (LaBSE) per epoch plus scoring; the bi-encoder and retrieval 3.7 h. The stacker, the rescue model and the writes ran on the laptop in minutes.
 - Test inference ran on a 16 GB laptop, with each step memory-capped: pass 1 3.6 h, pass 2 2.0 h, the residual 567 s (India) + 362 s (US), and the write step with the validator 186 s.
 
 ### B. Additional Results
@@ -269,5 +307,7 @@ The write step checks both files with our own streamed verifier (headers, one ro
 | day3_l2b_india | 5,808,116 | 3.352 | 100,381 (5.79 %) | 26.0 / 0 |
 | day3_usdown | 5,800,697 | 3.348 | 100,678 (5.81 %) | 26.0 / down-only |
 | day3_frdown | 5,791,925 | 3.343 | 101,053 (5.83 %) | 26.0 / down-only; France 60.6 if fully corrected |
+| day4_final_C | 5,844,159 | 3.373 | 99,430 (5.74 %) | CE stack + rescue on India/US; France as day3_frdown |
+| day4_final_D | 5,830,396 | 3.365 | 99,829 (5.76 %) | as C, US stack down-only |
 
 The residual changes 2.7× as many US entities on test as on the holdout (22,151 added and 7,505 removed pairs). The LB confirmed the concern: the US correction lost 0.00062 (day3_l2b vs day3_l2b_india), so the final file `{{FINAL_SUB_ID}}` uses US = {{FINAL_US}}. Both files share the same 43,058,923-pair candidate set: France 6,921,188, India 20,425,805, US 15,711,930. Three India S1 records have no candidates.

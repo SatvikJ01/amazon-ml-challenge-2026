@@ -52,12 +52,26 @@ folder (not at the zip root) and archives a copy under `submissions/<new id>/`.
    entities.
 6. **Residual E044.** A residual LightGBM with 204 features and `init_score = logit(prob3)`
    corrects prob3. It was trained on 702k training entities using cross-fitted out-of-fold prob3.
-7. **Decision.** Each entity gets the expected-F0.5-optimal prefix of its candidates, with
+7. **Cross-encoder stacker (E046, day4_final_* only).** Two pre-trained multilingual transformers,
+   `microsoft/mdeberta-v3-base` (MIT, 276M parameters) and `sentence-transformers/LaBSE` (Apache-2.0,
+   471M), are fine-tuned for two epochs as pair classifiers ("same business?") on 2.05M training-entity
+   pairs. They score the uncertain pairs (1e-3 ≤ p < 0.999). A residual LightGBM stacker with
+   `init_score = logit(p)` combines their logits with within-entity context and 10 pairwise stage-3
+   features. Holdout F0.5 0.985184 → 0.987717.
+8. **Dense-retrieval rescue (E047, day4_final_* only).** `intfloat/multilingual-e5-small` (MIT, 118M)
+   is fine-tuned as a bi-encoder on the ground-truth pairs of the non-holdout training entities.
+   Exact kNN in both directions within each country finds pairs that the lexical channels missed
+   (76 % of the holdout's missed true matches). The new pairs are scored by the LaBSE cross-encoder
+   and a LightGBM rescue model, and added to the candidate set. Holdout F0.5 0.987717 → 0.991184.
+   Steps 7 and 8 run on India and US only. France keeps the day3_frdown probabilities, because
+   a leave-one-country-out test showed that a cross-encoder hurts a country it never saw (E046b).
+9. **Decision.** Each entity gets the expected-F0.5-optimal prefix of its candidates, with
    one-owner exclusivity.
 
-All models are LightGBM (MIT licence), trained from scratch on the provided training data. No
-pre-trained model and no neural network is used by the final system, and it uses no external data
-and makes no API or network calls (see section 5).
+Stages 1 to 6 and the stacker / rescue models are LightGBM (MIT licence), trained from scratch on
+the provided training data. Stages 7 and 8 fine-tune the three public pre-trained checkpoints named
+above on the provided training data; nothing else external is used, and there are no data lookups
+or API calls (see section 5). The day3_* variants use stages 1 to 6 and 9 only.
 
 ## Final artefacts (shipped in `experiments/`)
 
@@ -67,6 +81,8 @@ and makes no API or network calls (see section 5).
 | `E039_stage2/` | stage 2 pairwise LightGBM → p2 | 73 | 2,999 | `src.train --tag v5c --exp E039_stage2` |
 | `E039_stage3/` | stage 3 collective LightGBM → prob3 (holdout 180,091 entities: 0.98421) | 114 | 1,552 | `src.train --tag v5c_ancz --exp E039_stage3` |
 | `L2_E044/` | residual level-2 LightGBM, variant ALL_nc, 600 rounds (holdout 0.985458 = +0.00123 over E039) | 204 | 600 | `src.l2_train finalize --tag f0123 --iteration 600` |
+| `E046_final/` | `stacker.txt`: E046 residual stacker (LightGBM, 400 rounds) on the uncertain band; `ce7_test.parquet` / `ce8_test.parquet`: test logits of the fine-tuned mDeBERTa-v3-base / LaBSE cross-encoders (pair ids + one float, no text) | 22 | 400 | step 9 (`src.ce_stack test --model-out`) and `kaggle/e046_ce/ce_kernel_ep2.py` |
+| `E047_final/` | `rescue.txt`: E047 rescue LightGBM (300 rounds); `dense_test_{US,India}.parquet`: new test pairs from the fine-tuned e5-small bi-encoder with their cosine, ranks and LaBSE logit (pair ids + floats, no text) | 11 | 300 | step 9 (`src.dense_rescue test --model-out`) and `kaggle/e047_dense/dense_kernel.py` |
 
 Each directory has `model.txt` (LightGBM text model) and `features.json` (the column order).
 Stage 1 to 3 also have `report.json`. `L2_E044/` also has `meta.json` (training description and
@@ -374,8 +390,9 @@ This gives `scores_l2b`: India and US corrected, France at prob3. (`scripts/run_
 the driver we actually ran for this step and the two writes after it. In this package its
 completeness check writes to a `mktemp` file; the original wrote to a session-local path.)
 
-The other leaderboard variants are built from the same models. Every one of them has the same
-candidate set, because only the probabilities differ.
+The other leaderboard variants are built from the same models. The day3_* variants all have the
+same 43,058,923-pair candidate set, because only the probabilities differ. The day4_final_* variants
+add the rescue channel's new pairs (step 9), which gives 51,624,825 candidates.
 
 | Submission id | India | US | France | Scores dir | Holdout F0.5 | Public LB |
 |---|---|---|---|---|---|---|
@@ -384,6 +401,8 @@ candidate set, because only the probabilities differ.
 | `day3_l2b_india` | corrected | prob3 | prob3 | `scores_l2b_in` | 0.98482 (India +0.00147 per India entity) | 0.976505 |
 | `day3_usdown` | corrected | min(prob3, corrected) | prob3 | `scores_usdown` | 0.98518 (+0.00095 vs E039) | {{LB_day3_usdown}} |
 | `day3_frdown` | corrected | min(prob3, corrected) | min(prob3, corrected) | `scores_frdown` | 0.98518 (France has no labels) | {{LB_day3_frdown}} |
+| `day4_final_C` | corrected + CE stack + rescue | min(prob3, corrected) + CE stack + rescue | as day3_frdown | `scores_finr_C` (step 9) | 0.991184 (France has no labels) | {{LB_day4_final_C}} |
+| `day4_final_D` | corrected + CE stack + rescue | min(prob3, corrected), then min(·, CE stack) + rescue | as day3_frdown | `scores_finr_D` (step 9) | 0.98683 + rescue | {{LB_day4_final_D}} |
 
 Holdout values are on the same 180,090 holdout entities (raw E039 0.98423 there; 0.98421 in E039's
 own report on 180,091). The `day3_l2b_india` and `day3_usdown` values add the per-country gains
@@ -415,6 +434,52 @@ Notes on these commands:
 - **Checks on the combined directories.** We recomputed `scores_usdown` and `scores_frdown` from
   their inputs with the rules above and they matched exactly.
 
+### Step 9: cross-encoder stacker and dense-retrieval rescue (day4_final_C / day4_final_D)
+
+These two files start from `scores_frdown` (step 7) and add stages 7 and 8. Two routes, as above.
+
+**Route A (no GPU, from the shipped predictions and models, ~15 min on the laptop):**
+
+```bash
+python -m src.ce_data test --scores experiments/E039_test/scores_frdown      # -> experiments/E046/test_pairs.parquet
+EX=p2,nm_c_extra_minnoise,nd_absdiff,name_jw,addr_empty_c,addr_tset,anum_first_rel,name_ntok_diff,anum_c_extra,nsup_extra_p
+F=lpf,lp39,ce7,ce8,ce,ce_rank,ce_max_o,ce_gap,n_band,pf_max_o,n_sure,src
+for V in C D; do
+  R=$([ $V = C ] && echo "India=full US=full France=raw" || echo "India=full US=down France=raw")
+  python -m src.ce_stack test --ce 7,8 --ce-dir experiments/E046_final --feats $F --extra $EX --rounds 0 \
+      --model-in experiments/E046_final/stacker.txt --out scores_fin_$V --rule $R          # ~3 min, 4 GB
+  python -m src.dense_rescue test --dense-dir experiments/E047_final --model-in experiments/E047_final/rescue.txt \
+      --base scores_fin_$V --out scores_finr_$V --countries US India                       # ~3 min, 5 GB
+done
+```
+
+`ce_stack test` reads the stage-3 features of the band pairs from `experiments/E039_test/scores_feats/`
+(step 6). The stacker changes only the 3,735,332 band pairs. The rescue adds `US_px.parquet` /
+`India_px.parquet` (3,639,932 + 4,925,970 new pairs) to the scores directory. Then run step 8 with
+`SCORES=scores_finr_C` (or `_D`).
+
+**Route B (re-train the neural models; Kaggle 2× T4, Python 3.12, torch 2.10.0+cu128):**
+
+1. `python -m src.ce_data holdout --holdout <E039 holdout table> --holdout-l2 <its level-2 features>`
+   (EC2, after step 5), `python -m src.ce_data train --oof-dir experiments/E044 --lo 0.001 --hi 0.999 --easy-frac 0.3`,
+   `python -m src.ce_data test`, then `python -m src.ce_data texts` for each table. This gives
+   `train_text` (2.05M pairs), `hold_text` (323k) and `test_text` (3.74M). Upload them as a private
+   Kaggle dataset.
+2. `kaggle/e046_ce/ce_kernel_mdl.py` fine-tunes mDeBERTa-v3-base and LaBSE (1 epoch, ~3 h).
+   `kaggle/e046_ce/ce_kernel_ep2.py` continues both for a second epoch (lr 1e-5) and writes
+   `ce{0,1}_{hold,test}.parquet`. These are `ce7` / `ce8` here. `kaggle/e046_ce/fetch.sh` downloads them.
+3. `python -m src.ce_stack holdout ... --dump` (2-fold holdout CV, F0.5 0.987717). Then
+   `ce_stack test ... --rounds 400 --model-out experiments/E046_final/stacker.txt`.
+4. `python -m src.dense_prep` builds the record texts, the non-holdout ground truth, the holdout ids
+   and a Bloom filter of the existing candidate pairs. `kaggle/e047_dense/dense_kernel.py` fine-tunes
+   the bi-encoder (55 min), retrieves (exact GPU kNN), filters and scores the new pairs (~3.5 h).
+5. `python -m src.dense_rescue holdout ...` (holdout 0.991184). Then
+   `dense_rescue test ... --rounds 300 --model-out experiments/E047_final/rescue.txt`.
+
+GPU training is not bit-exact across runs. Route B therefore reproduces the files to within model
+noise, and route A reproduces them exactly. The Hugging Face checkpoints are downloaded once by the
+kernels. Every licence is MIT or Apache-2.0, and every model is at most 471M parameters.
+
 ### Step 8: write, check and archive the submission
 
 Set `SCORES` and `SUB` to the chosen row of the table:
@@ -430,7 +495,8 @@ The write step does the following:
    one-owner exclusivity (`src.inference.enforce_exclusivity`) and the expected-F0.5 prefix
    selection (`src.decision.select_sets`).
 2. Writes `output/matching_results.tsv` and `output/candidate_pairs.tsv`. The candidate file lists
-   every pair stage 3 scored, which is 43,058,923 pairs (24.85 per S1).
+   every scored pair: 43,058,923 pairs (24.85 per S1) for the day3_* files, and 51,624,825 for
+   day4_final_*, where the rescue channel's new pairs are added.
 3. Re-reads both files and checks every format rule, then runs the official validator on the
    matching file.
 4. Copies both files and a `meta.json` to `submissions/$SUB/`.
@@ -510,7 +576,9 @@ test-side step does.
 
 - **Data.** Only the provided train/test files are used. The native-script dictionary is learned
   from the training ground truth (`src/translit.py build`). There is no geocoding, no external
-  list and no network access: the final system downloads nothing.
+  list and no data lookup. The only download is the three public pre-trained checkpoints, fetched by
+  the Kaggle training kernels of stages 7 and 8 (section 5, Models). The LightGBM stages and route A
+  download nothing.
 - **Experimental code left out.** Our repository also holds an abandoned experimental retrieval
   study ("v4": `src/v4_dag.py`, `src/v4_entities.py`, `src/exp_retrieval_v4.py` and a dense
   channel `src/embed_channel.py` that would use the pre-trained `intfloat/multilingual-e5-small`,
@@ -521,6 +589,14 @@ test-side step does.
   optional channels in `src/channels.py` are still packaged, because `src/v3.py` imports that
   module lazily; they stay off while `V4_CHANNELS` is unset. `scripts/aws/bootstrap.sh` still has an
   `EMBED=1` option for that stack: leave it unset.
-- **Models.** Every model is LightGBM 4.5.0 (MIT licence), trained from scratch. The largest,
-  stage 2, is a 42 MB text model with about 3k trees, far below the 8B-parameter limit.
+- **Models.** Stages 1 to 6, the E046 stacker and the E047 rescue model are LightGBM 4.5.0 (MIT
+  licence), trained from scratch; the largest, stage 2, is a 42 MB text model with about 3k trees.
+  The day4_final_* files also use three public pre-trained transformers, fine-tuned on the provided
+  training data only:
+  - `microsoft/mdeberta-v3-base`: MIT, 276M parameters, cross-encoder.
+  - `sentence-transformers/LaBSE`: Apache-2.0, 471M parameters, cross-encoder.
+  - `intfloat/multilingual-e5-small`: MIT, 118M parameters, bi-encoder.
+
+  All three are far below the 8B-parameter limit. They are downloaded once from Hugging Face by the
+  Kaggle training kernels. No data is looked up, and inference (route A) needs no network.
 - **XGBoost.** It appears only in optional code paths of earlier experiments and is not used here.

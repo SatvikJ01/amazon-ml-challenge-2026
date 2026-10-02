@@ -258,24 +258,36 @@ def cmd_test(a) -> None:
 
     ks = [int(x) for x in a.ce.split(",")]
     ce_cols = [f"ce{k}" for k in ks]
-    # train on the whole holdout band
-    D = pd.read_parquet(E / "holdout_pairs.parquet")
-    A = D[D.pf >= LO][["s1", "cand", "pf"]]
-    B = D[(D.pf >= LO) & (D.pf < HI)].reset_index(drop=True).merge(load_ce("hold", ks, Path(a.ce_dir)), on=["s1", "cand"])
-    X = features(B, A, ce_cols)
     ex = a.extra.split(",") if a.extra else []
-    if ex:
-        Xe = B[["s1", "cand"]].merge(pd.read_parquet(E / "hold_extra.parquet", columns=["s1", "cand"] + ex),
-                                     on=["s1", "cand"], how="left")
-        for c in ex:
-            X[c] = Xe[c].to_numpy(np.float32)
-    feats = list(X.columns) if a.feats == "all" else a.feats.split(",") + ex
-    wtr = negative_weights(B) if a.shift else None
-    m = lgb.train(PARAMS, lgb.Dataset(X[feats], B.label.to_numpy(), init_score=X.lpf.to_numpy(np.float64), weight=wtr),
-                  num_boost_round=a.rounds)
+    if a.model_in:
+        D = A = B = X = None
+        feats = a.feats.split(",") + ex
+    else:
+        # train on the whole holdout band
+        D = pd.read_parquet(E / "holdout_pairs.parquet")
+        A = D[D.pf >= LO][["s1", "cand", "pf"]]
+        B = D[(D.pf >= LO) & (D.pf < HI)].reset_index(drop=True).merge(load_ce("hold", ks, Path(a.ce_dir)), on=["s1", "cand"])
+        X = features(B, A, ce_cols)
+        if ex:
+            Xe = B[["s1", "cand"]].merge(pd.read_parquet(E / "hold_extra.parquet", columns=["s1", "cand"] + ex),
+                                         on=["s1", "cand"], how="left")
+            for c in ex:
+                X[c] = Xe[c].to_numpy(np.float32)
+        feats = list(X.columns) if a.feats == "all" else a.feats.split(",") + ex
+    if a.model_in:                                   # packaged route: apply the shipped stacker
+        m = lgb.Booster(model_file=a.model_in)
+        assert m.feature_name() == feats, f"shipped stacker features {m.feature_name()} != {feats}"
+    else:
+        wtr = negative_weights(B) if a.shift else None
+        m = lgb.train(PARAMS, lgb.Dataset(X[feats], B.label.to_numpy(), init_score=X.lpf.to_numpy(np.float64), weight=wtr),
+                      num_boost_round=a.rounds)
+        if a.model_out:
+            Path(a.model_out).parent.mkdir(parents=True, exist_ok=True)
+            m.save_model(a.model_out)
+            log("stacker saved ->", a.model_out)
     del D, A, B, X
     # test band + context
-    T = pd.read_parquet(E / "test_pairs.parquet")               # s1, cand, src, pf, country (pf >= 1e-3)
+    T = pd.read_parquet(a.test_pairs)                           # s1, cand, src, pf, country (pf >= 1e-3)
     A = T[["s1", "cand", "pf"]]
     B = T[(T.pf >= LO) & (T.pf < HI)].reset_index(drop=True)
     p39, keys = [], B[["s1", "cand"]]
@@ -349,6 +361,9 @@ def main() -> None:
     s.add_argument("--rule", nargs="+", required=True, help="Country=full|down|raw")
     s.add_argument("--shift", action="store_true", help="train with test-composition negative weights")
     s.add_argument("--extra", default="", help="comma list of stage-3 features added to the stacker")
+    s.add_argument("--model-out", default="", help="save the stacker trained on the holdout band here")
+    s.add_argument("--model-in", default="", help="apply this saved stacker instead of training (no holdout needed)")
+    s.add_argument("--test-pairs", default=str(E / "test_pairs.parquet"))
     a = ap.parse_args()
     {"holdout": cmd_holdout, "test": cmd_test}[a.cmd](a)
 

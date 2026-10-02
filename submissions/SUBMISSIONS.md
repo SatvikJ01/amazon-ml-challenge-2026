@@ -24,6 +24,8 @@
 | day4_ep2_D | 10-02 04:30 (prepared) | same, US down-only, France raw | expF + exclusivity | holdout +0.00164 | not submitted | conservative twin | validator PASS; 5,775,371 matches |
 | day4_ep2r_C | 10-02 04:50 (prepared) | day4_ep2_C + **E047 dense-retrieval rescue** (fine-tuned e5-small kNN, LaBSE CE, LightGBM rescue) on US/India | expF + exclusivity | holdout **0.991184** (+0.00600 vs day3_frdown's 0.985184) | not submitted (leaderboard closed 09-27); estimated LB ≈ 0.983 | best post-deadline result | validator PASS; 5,844,159 matches; 51.6M candidates |
 | day4_ep2r_D | 10-02 04:55 (prepared) | same on day4_ep2_D (US down-only) | expF + exclusivity | — | not submitted | conservative twin | validator PASS; 5,830,396 matches |
+| day4_final_C | 10-02 05:40 | **FINAL candidate**: day3_frdown + E046 cross-encoder stacker (mDeBERTa-v3-base + LaBSE, 2 epochs; shipped `experiments/E046_final/stacker.txt`), full on India/US + E047 dense-retrieval rescue (shipped `experiments/E047_final/rescue.txt`) on India/US; France as day3_frdown | expF + exclusivity | holdout **0.991184** | [pending] | regenerated through the packaged route (byte-identical to day4_ep2r_C) | validator PASS; 5,844,159 matches; 99,430 empty; 51,624,825 candidates |
+| day4_final_D | 10-02 05:45 | same with the stacker down-only on US | expF + exclusivity | 0.98683 + rescue | [pending] | conservative twin (US) | validator PASS; 5,830,396 matches; 99,829 empty |
 
 day1_s1 stats: 1,732,544 rows; 107,075 empty (6.2 %); 5.57 M matches (3.21/entity);
 28.8 M candidates (16.6/entity). Per country mean matches / empty rate:

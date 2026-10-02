@@ -139,13 +139,21 @@ def cmd_test(a) -> None:
     from .l2_train import holdout_entities
     from .train import truth_for
 
-    D = holdout_final_probs(a.stack_tag)
-    N = load_new("hold", ("US", "India"), Path(a.dense_dir))
-    T = truth_for(holdout_entities())
-    N["label"] = np.fromiter((c in T.get(int(s), ()) for s, c in zip(N.s1.to_numpy(), N.cand.to_numpy())), bool, len(N)).astype(np.int8)
-    N = add_features(N, D[["s1", "prob"]])
-    m = lgb.train(PARAMS, lgb.Dataset(N[FEATS], N.label.to_numpy()), num_boost_round=a.rounds)
-    del D, N
+    if a.model_in:                                   # packaged route: apply the shipped rescue model
+        m = lgb.Booster(model_file=a.model_in)
+        assert m.feature_name() == FEATS, f"shipped rescue features {m.feature_name()} != {FEATS}"
+    else:
+        D = holdout_final_probs(a.stack_tag)
+        N = load_new("hold", ("US", "India"), Path(a.dense_dir))
+        T = truth_for(holdout_entities())
+        N["label"] = np.fromiter((c in T.get(int(s), ()) for s, c in zip(N.s1.to_numpy(), N.cand.to_numpy())), bool, len(N)).astype(np.int8)
+        N = add_features(N, D[["s1", "prob"]])
+        m = lgb.train(PARAMS, lgb.Dataset(N[FEATS], N.label.to_numpy()), num_boost_round=a.rounds)
+        if a.model_out:
+            Path(a.model_out).parent.mkdir(parents=True, exist_ok=True)
+            m.save_model(a.model_out)
+            log("rescue model saved ->", a.model_out)
+        del D, N
     base = ROOT / "experiments" / a.run / a.base
     out = ROOT / "experiments" / a.run / a.out
     if out.exists():
@@ -180,6 +188,8 @@ def main() -> None:
     t.add_argument("--out", required=True)
     t.add_argument("--countries", nargs="+", default=["US", "India"])
     t.add_argument("--scale", type=float, default=1.0)
+    t.add_argument("--model-out", default="", help="save the rescue model trained on the holdout here")
+    t.add_argument("--model-in", default="", help="apply this saved rescue model instead of training")
     a = ap.parse_args()
     {"holdout": cmd_holdout, "test": cmd_test}[a.cmd](a)
 

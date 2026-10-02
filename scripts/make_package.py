@@ -87,16 +87,25 @@ REQUIRED_SRC = [
     "extra_features3", "extra_features4", "features", "ids", "infer_v3", "inference", "key_channel",
     "level2", "make_stage2", "metrics", "normalize", "patch_extra", "prep", "stage1", "stage4",
     "submission", "train", "translit", "v3",
+    "ce_data", "ce_stack", "dense_prep", "dense_rescue",       # E046 cross-encoder stacker, E047 dense rescue
 ]
 L2_TRAIN_SRC = "l2_train"                        # repo port of the EC2 E044 training scripts
 SCRIPT_FILES = ["scripts/apply_l2.py", "scripts/make_package.py"]          # required
-SCRIPT_GLOBS = ["scripts/*.sh", "scripts/aws/*.sh", "scripts/*.py"]      # every driver / helper (e.g. combine_scores.py)
+SCRIPT_GLOBS = ["scripts/*.sh", "scripts/aws/*.sh", "scripts/*.py",       # every driver / helper (e.g. combine_scores.py)
+                "kaggle/*/*.py", "kaggle/*/*.sh", "kaggle/*/*.json"]     # E046 / E047 GPU kernels (Kaggle 2x T4)
 MODEL_FILES = {                                  # experiments/<dir>/<file>, all required
     "E039_stage1": ["model.txt", "features.json", "report.json"],
     "E039_stage2": ["model.txt", "features.json", "report.json"],
     "E039_stage3": ["model.txt", "features.json", "report.json"],
     "L2_E044": ["model.txt", "features.json", "meta.json", "ref_X5000.npy", "ref_raw5000.npy"],
+    # E046: stacker on the uncertain band + the fine-tuned cross-encoders' test predictions (ids + logits)
+    "E046_final": ["stacker.txt", "ce7_test.parquet", "ce8_test.parquet"],
+    # E047: dense-retrieval rescue model + the bi-encoder/cross-encoder outputs for the new test pairs
+    "E047_final": ["rescue.txt", "dense_test_US.parquet", "dense_test_India.parquet"],
 }
+# Model-prediction tables shipped on purpose (pair ids + model scores only, no record text, no labels): they
+# let the final file be regenerated exactly without re-training the GPU models (README step 9, route A).
+PREDICTIONS_ALLOWED = {f"{PKG}/experiments/{d}/{f}" for d, fs in MODEL_FILES.items() for f in fs if f.endswith(".parquet")}
 SMALL_DATA = ["data/processed/translit_dict.json"]
 VALIDATOR = "student_resource/utils/validate_submission.py"
 OUTPUT_FILES = ["matching_results.tsv", "candidate_pairs.tsv"]
@@ -191,6 +200,20 @@ VARIANTS = {
                         rule="E044 residual in full on India, down-only min(prob3, p) on US and on France",
                         holdout="0.98518 (France unlabelled, its part is not validatable)", scores="scores_frdown"),
 }
+VARIANTS.update({
+    "day4_final_C": dict(
+        india="full E044 correction, then the E046 cross-encoder stacker (full) on the uncertain band, then the E047 dense-retrieval rescue",
+        us="down-only E044 correction, then the E046 cross-encoder stacker (full) on the uncertain band, then the E047 dense-retrieval rescue",
+        france="down-only E044 correction (as day3_frdown; no cross-encoder or rescue: the models never saw France)",
+        rule="day3_frdown + E046 mDeBERTa-v3-base/LaBSE cross-encoder stacker (full on India and US) + E047 dense-retrieval rescue on India and US; France as day3_frdown",
+        holdout="0.991184 (India/US; France unlabelled)", scores="scores_finr_C"),
+    "day4_final_D": dict(
+        india="full E044 correction, then the E046 cross-encoder stacker (full) on the uncertain band, then the E047 dense-retrieval rescue",
+        us="down-only E044 correction, then the E046 cross-encoder stacker down-only min(p, p_stack), then the E047 dense-retrieval rescue",
+        france="down-only E044 correction (as day3_frdown; no cross-encoder or rescue: the models never saw France)",
+        rule="day3_frdown + E046 cross-encoder stacker (full on India, down-only on US) + E047 dense-retrieval rescue on India and US; France as day3_frdown",
+        holdout="0.98683 before the rescue (E046 stack, US down-only) + the E047 rescue (holdout +0.0035 on the full stack)", scores="scores_finr_D"),
+})
 # Left-over template placeholders that a non-draft build refuses in a packaged document.
 DOC_PLACEHOLDERS = re.compile(r"\{\{[A-Za-z0-9_]+\}\}|\[BEST_LB|\[FINAL_[A-Z]+\]|\[Team Name\]|\[Team Members\]|\[TEAM|\[FINAL_SUB_ID\]|\[FINAL_LB\]"
                               r"|\[pending\]|DRAFT PLACEHOLDER")
@@ -243,6 +266,8 @@ def count_lines(path: Path, chunk: int = 8 << 20) -> int:
 
 def forbidden_reason(src_rel: str | None, arc: str) -> str | None:
     """Why this file must not be packaged, or None if it is allowed."""
+    if arc in PREDICTIONS_ALLOWED:
+        return None
     for name in filter(None, (src_rel, arc)):
         for pat, why in FORBIDDEN:
             if pat.search(name):

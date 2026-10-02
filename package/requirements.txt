@@ -25,6 +25,22 @@ six==1.17.0
 xgboost==2.1.3           # only for `--model xgb` / `infer_v3 rescore` (E032-era models); not needed for E039 + E044
 pytest==8.3.4            # tests/ only
 #
-# Deliberately NOT listed: torch / sentence-transformers / faiss.  They were only needed by an abandoned
-# experimental dense retrieval channel (v4, src/embed_channel.py), which no submitted model used and which
-# is not part of the submission package.
+#
+# Neural stages E046 / E047 (README step 9).  Route A (shipped predictions + LightGBM stacker / rescue models)
+# needs nothing beyond the packages above.  Route B (re-training the cross-encoders and the bi-encoder) runs the
+# kaggle/ kernels on the Kaggle GPU image (2x T4), whose versions were:
+#   Python 3.12.13
+#   torch==2.10.0+cu128
+#   transformers==5.0.0
+#   tokenizers==0.22.2
+#   safetensors==0.7.0
+#   sentencepiece==0.2.1
+#   protobuf==5.29.5
+#   tiktoken==0.12.0
+#   huggingface_hub==1.11.0
+#   numpy==2.0.2, pandas==2.3.3, pyarrow==24.0.0 (Kaggle image)
+# Pre-trained checkpoints (downloaded once by the kernels): microsoft/mdeberta-v3-base (MIT),
+# sentence-transformers/LaBSE (Apache-2.0), intfloat/multilingual-e5-small (MIT).
+#
+# Not listed: sentence-transformers / faiss.  They were only needed by an abandoned experimental dense
+# retrieval channel (v4, src/embed_channel.py), which is not part of the submission package.
